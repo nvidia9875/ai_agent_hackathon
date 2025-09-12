@@ -1,0 +1,218 @@
+{
+  "system": {
+    "version": "1.0.0",
+    "environment": "development",
+    "log_level": "info",
+    "max_concurrent_tasks": 10,
+    "task_timeout_seconds": 300,
+    "health_check_interval_seconds": 30
+  },
+  "agents": {
+    "visual_detective": {
+      "name": "Visual Detective Agent",
+      "description": "Image analysis and pet identification agent",
+      "version": "1.0.0",
+      "enabled": true,
+      "max_concurrent_tasks": 5,
+      "retry_attempts": 3,
+      "timeout_seconds": 120,
+      "config": {
+        "vision_ai": {
+          "endpoint": "${VISION_AI_ENDPOINT}",
+          "api_key": "${VISION_AI_API_KEY}",
+          "model_version": "latest",
+          "max_image_size_mb": 10,
+          "supported_formats": ["jpg", "jpeg", "png", "gif", "webp"]
+        },
+        "vertex_ai": {
+          "endpoint": "${VERTEX_AI_ENDPOINT}",
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "location": "us-central1",
+          "feature_model": "pet-feature-extractor-v1",
+          "feature_dimension": 1024
+        },
+        "vector_search": {
+          "index_name": "pet-features-index",
+          "similarity_threshold": 0.7,
+          "max_results": 50,
+          "endpoint": "${VECTOR_SEARCH_ENDPOINT}"
+        },
+        "imagen": {
+          "endpoint": "${IMAGEN_ENDPOINT}",
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "model": "imagegeneration@002",
+          "poster_template": "missing-pet-poster-v1"
+        },
+        "storage": {
+          "bucket_name": "${CLOUD_STORAGE_BUCKET}",
+          "image_cache_ttl_hours": 24,
+          "poster_storage_path": "posters/"
+        }
+      },
+      "performance": {
+        "target_response_time_ms": 5000,
+        "max_memory_usage_mb": 512,
+        "success_rate_threshold": 0.95
+      }
+    },
+    "behavior_predictor": {
+      "name": "Behavior Predictor Agent",
+      "description": "Pet behavior prediction and search area optimization",
+      "version": "1.0.0",
+      "enabled": true,
+      "max_concurrent_tasks": 3,
+      "retry_attempts": 3,
+      "timeout_seconds": 180,
+      "config": {
+        "vertex_ai": {
+          "endpoint": "${VERTEX_AI_ENDPOINT}",
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "behavior_model": "pet-behavior-predictor-v1",
+          "location": "us-central1"
+        },
+        "google_maps": {
+          "api_key": "${GOOGLE_MAPS_API_KEY}",
+          "places_api_key": "${GOOGLE_PLACES_API_KEY}",
+          "elevation_api_key": "${GOOGLE_ELEVATION_API_KEY}",
+          "max_requests_per_minute": 100
+        },
+        "weather": {
+          "api_key": "${WEATHER_API_KEY}",
+          "endpoint": "https://api.openweathermap.org/data/2.5",
+          "forecast_hours": 48,
+          "update_interval_minutes": 30
+        },
+        "behavior_models": {
+          "dog": {
+            "base_exploration_radius_m": 1000,
+            "activity_peak_hours": [6, 7, 8, 17, 18, 19],
+            "territorial_factor": 0.8,
+            "human_seeking_factor": 0.9
+          },
+          "cat": {
+            "base_exploration_radius_m": 500,
+            "activity_peak_hours": [5, 6, 20, 21, 22],
+            "territorial_factor": 0.9,
+            "human_seeking_factor": 0.3
+          }
+        },
+        "search_optimization": {
+          "max_search_areas": 20,
+          "priority_decay_hours": 6,
+          "weather_impact_threshold": 0.3
+        }
+      },
+      "performance": {
+        "target_response_time_ms": 8000,
+        "max_memory_usage_mb": 256,
+        "success_rate_threshold": 0.92
+      }
+    },
+    "search_coordinator": {
+      "name": "Search Coordinator Agent",
+      "description": "Multi-agent coordination and search strategy optimization",
+      "version": "1.0.0",
+      "enabled": true,
+      "max_concurrent_tasks": 5,
+      "retry_attempts": 2,
+      "timeout_seconds": 60,
+      "config": {
+        "adk": {
+          "endpoint": "${ADK_ENDPOINT}",
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "coordination_model": "multi-agent-coordinator-v1"
+        },
+        "pubsub": {
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "topics": {
+            "visual_detective_tasks": "visual-detective-tasks",
+            "behavior_predictor_tasks": "behavior-predictor-tasks",
+            "coordination_results": "coordination-results"
+          },
+          "subscriptions": {
+            "coordinator_sub": "search-coordinator-subscription"
+          },
+          "message_retention_hours": 24
+        },
+        "firestore": {
+          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "database": "(default)",
+          "collections": {
+            "search_cases": "search_cases",
+            "search_progress": "search_progress",
+            "search_events": "search_events"
+          }
+        },
+        "optimization": {
+          "strategy_optimization_algorithm": "genetic_algorithm",
+          "population_size": 50,
+          "generations": 100,
+          "mutation_rate": 0.1,
+          "crossover_rate": 0.7
+        },
+        "dashboard": {
+          "update_interval_seconds": 5,
+          "max_timeline_events": 100,
+          "chart_data_points": 50
+        }
+      },
+      "performance": {
+        "target_response_time_ms": 3000,
+        "max_memory_usage_mb": 512,
+        "success_rate_threshold": 0.98
+      }
+    }
+  },
+  "communication": {
+    "pubsub": {
+      "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
+      "default_timeout_seconds": 30,
+      "max_retry_attempts": 3,
+      "message_ordering": true,
+      "compression_enabled": true
+    },
+    "http": {
+      "timeout_seconds": 30,
+      "max_retry_attempts": 3,
+      "retry_delay_ms": 1000,
+      "max_retry_delay_ms": 10000,
+      "backoff_multiplier": 2
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "collection_interval_seconds": 60,
+      "retention_days": 30,
+      "alerting_enabled": true
+    },
+    "logging": {
+      "level": "info",
+      "structured_logging": true,
+      "log_agent_communications": true,
+      "log_performance_metrics": true
+    },
+    "alerts": {
+      "error_rate_threshold": 0.05,
+      "response_time_threshold_ms": 10000,
+      "memory_usage_threshold": 0.8,
+      "notification_channels": ["email", "webhook"]
+    }
+  },
+  "security": {
+    "api_authentication": {
+      "enabled": true,
+      "method": "api_key",
+      "key_header": "X-API-Key"
+    },
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 100,
+      "burst_limit": 10
+    },
+    "input_validation": {
+      "strict_mode": true,
+      "max_payload_size_mb": 50,
+      "allowed_file_types": ["jpg", "jpeg", "png", "gif", "webp"]
+    }
+  }
+}

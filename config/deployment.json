@@ -1,0 +1,386 @@
+{
+  "deployment": {
+    "name": "pawmate-ai-agents",
+    "version": "1.0.0",
+    "environment": "production",
+    "region": "us-central1",
+    "description": "PawMate AI Agent System for Pet Search and Rescue"
+  },
+  "cloud_run": {
+    "services": {
+      "main_application": {
+        "name": "pawmate-main-app",
+        "image": "gcr.io/${GOOGLE_CLOUD_PROJECT_ID}/pawmate-app:latest",
+        "port": 3000,
+        "memory": "2Gi",
+        "cpu": "1000m",
+        "min_instances": 1,
+        "max_instances": 10,
+        "timeout": "300s",
+        "concurrency": 1000,
+        "environment_variables": {
+          "NODE_ENV": "production",
+          "GOOGLE_CLOUD_PROJECT_ID": "${GOOGLE_CLOUD_PROJECT_ID}",
+          "GOOGLE_CLOUD_REGION": "${GOOGLE_CLOUD_REGION}"
+        },
+        "service_account": "${SERVICE_ACCOUNT_EMAIL}",
+        "ingress": "all",
+        "allow_unauthenticated": true
+      },
+      "visual_detective_worker": {
+        "name": "pawmate-visual-detective-worker",
+        "image": "gcr.io/${GOOGLE_CLOUD_PROJECT_ID}/pawmate-visual-detective:latest",
+        "port": 8080,
+        "memory": "4Gi",
+        "cpu": "2000m",
+        "min_instances": 0,
+        "max_instances": 5,
+        "timeout": "900s",
+        "concurrency": 10,
+        "environment_variables": {
+          "AGENT_TYPE": "visual-detective",
+          "WORKER_MODE": "true"
+        },
+        "service_account": "${VISUAL_DETECTIVE_SERVICE_ACCOUNT}",
+        "ingress": "internal"
+      },
+      "behavior_predictor_worker": {
+        "name": "pawmate-behavior-predictor-worker",
+        "image": "gcr.io/${GOOGLE_CLOUD_PROJECT_ID}/pawmate-behavior-predictor:latest",
+        "port": 8080,
+        "memory": "2Gi",
+        "cpu": "1000m",
+        "min_instances": 0,
+        "max_instances": 3,
+        "timeout": "600s",
+        "concurrency": 5,
+        "environment_variables": {
+          "AGENT_TYPE": "behavior-predictor",
+          "WORKER_MODE": "true"
+        },
+        "service_account": "${BEHAVIOR_PREDICTOR_SERVICE_ACCOUNT}",
+        "ingress": "internal"
+      },
+      "search_coordinator_worker": {
+        "name": "pawmate-search-coordinator-worker",
+        "image": "gcr.io/${GOOGLE_CLOUD_PROJECT_ID}/pawmate-search-coordinator:latest",
+        "port": 8080,
+        "memory": "1Gi",
+        "cpu": "500m",
+        "min_instances": 1,
+        "max_instances": 3,
+        "timeout": "300s",
+        "concurrency": 20,
+        "environment_variables": {
+          "AGENT_TYPE": "search-coordinator",
+          "WORKER_MODE": "true"
+        },
+        "service_account": "${SEARCH_COORDINATOR_SERVICE_ACCOUNT}",
+        "ingress": "internal"
+      }
+    }
+  },
+  "firestore": {
+    "database": {
+      "name": "(default)",
+      "location": "us-central1",
+      "collections": {
+        "search_cases": {
+          "indexes": [
+            {
+              "fields": [
+                { "field": "status", "order": "ASCENDING" },
+                { "field": "start_time", "order": "DESCENDING" }
+              ]
+            },
+            {
+              "fields": [
+                { "field": "pet_info.type", "order": "ASCENDING" },
+                { "field": "last_updated", "order": "DESCENDING" }
+              ]
+            }
+          ]
+        },
+        "search_events": {
+          "indexes": [
+            {
+              "fields": [
+                { "field": "search_id", "order": "ASCENDING" },
+                { "field": "timestamp", "order": "DESCENDING" }
+              ]
+            },
+            {
+              "fields": [
+                { "field": "type", "order": "ASCENDING" },
+                { "field": "impact_level", "order": "DESCENDING" }
+              ]
+            }
+          ]
+        }
+      }
+    }
+  },
+  "pubsub": {
+    "topics": [
+      {
+        "name": "visual-detective-tasks",
+        "message_retention": "7d",
+        "message_ordering": true
+      },
+      {
+        "name": "behavior-predictor-tasks",
+        "message_retention": "7d",
+        "message_ordering": true
+      },
+      {
+        "name": "coordination-results",
+        "message_retention": "30d",
+        "message_ordering": false
+      }
+    ],
+    "subscriptions": [
+      {
+        "name": "visual-detective-worker-sub",
+        "topic": "visual-detective-tasks",
+        "ack_deadline": "120s",
+        "message_ordering": true,
+        "retry_policy": {
+          "minimum_backoff": "10s",
+          "maximum_backoff": "600s"
+        }
+      },
+      {
+        "name": "behavior-predictor-worker-sub",
+        "topic": "behavior-predictor-tasks",
+        "ack_deadline": "180s",
+        "message_ordering": true,
+        "retry_policy": {
+          "minimum_backoff": "10s",
+          "maximum_backoff": "600s"
+        }
+      },
+      {
+        "name": "search-coordinator-sub",
+        "topic": "coordination-results",
+        "ack_deadline": "60s",
+        "message_ordering": false,
+        "retry_policy": {
+          "minimum_backoff": "5s",
+          "maximum_backoff": "300s"
+        }
+      }
+    ]
+  },
+  "cloud_storage": {
+    "buckets": [
+      {
+        "name": "${GOOGLE_CLOUD_PROJECT_ID}-pawmate-images",
+        "location": "us-central1",
+        "storage_class": "STANDARD",
+        "lifecycle_rules": [
+          {
+            "action": "Delete",
+            "condition": {
+              "age": 365
+            }
+          }
+        ],
+        "cors": [
+          {
+            "origin": ["https://*.googlepages.com", "https://localhost:3000"],
+            "method": ["GET", "POST", "PUT"],
+            "responseHeader": ["Content-Type"],
+            "maxAgeSeconds": 3600
+          }
+        ]
+      },
+      {
+        "name": "${GOOGLE_CLOUD_PROJECT_ID}-pawmate-posters",
+        "location": "us-central1",
+        "storage_class": "STANDARD",
+        "public_access": true,
+        "lifecycle_rules": [
+          {
+            "action": "SetStorageClass",
+            "condition": {
+              "age": 30
+            },
+            "storage_class": "COLDLINE"
+          }
+        ]
+      }
+    ]
+  },
+  "vertex_ai": {
+    "models": [
+      {
+        "name": "pet-feature-extractor-v1",
+        "type": "custom",
+        "framework": "tensorflow",
+        "version": "1.0.0",
+        "endpoint": {
+          "machine_type": "n1-standard-4",
+          "accelerator": {
+            "type": "NVIDIA_TESLA_T4",
+            "count": 1
+          },
+          "min_replica_count": 1,
+          "max_replica_count": 3,
+          "autoscaling": {
+            "target_utilization": 70,
+            "scale_up_replicas": 1,
+            "scale_down_replicas": 1
+          }
+        }
+      },
+      {
+        "name": "pet-behavior-predictor-v1",
+        "type": "custom",
+        "framework": "pytorch",
+        "version": "1.0.0",
+        "endpoint": {
+          "machine_type": "n1-standard-2",
+          "min_replica_count": 1,
+          "max_replica_count": 2,
+          "autoscaling": {
+            "target_utilization": 60
+          }
+        }
+      }
+    ]
+  },
+  "vector_search": {
+    "index": {
+      "name": "pet-features-index",
+      "dimensions": 1024,
+      "approximate_neighbors_count": 150,
+      "leaf_node_embedding_count": 500,
+      "leaf_nodes_to_search_percent": 10,
+      "distance_measure_type": "COSINE_DISTANCE"
+    },
+    "endpoint": {
+      "machine_type": "n1-standard-2",
+      "min_replica_count": 1,
+      "max_replica_count": 2
+    }
+  },
+  "monitoring": {
+    "dashboards": [
+      {
+        "name": "PawMate AI Agents Overview",
+        "charts": [
+          "agent_request_rate",
+          "agent_error_rate",
+          "agent_latency",
+          "active_search_cases",
+          "system_resource_usage"
+        ]
+      }
+    ],
+    "alerts": [
+      {
+        "name": "High Error Rate",
+        "condition": "error_rate > 5%",
+        "duration": "5m",
+        "notification_channels": ["email", "slack"]
+      },
+      {
+        "name": "High Latency",
+        "condition": "latency_p99 > 10s",
+        "duration": "3m",
+        "notification_channels": ["email"]
+      },
+      {
+        "name": "Agent Down",
+        "condition": "up == 0",
+        "duration": "1m",
+        "notification_channels": ["email", "slack", "pagerduty"]
+      }
+    ]
+  },
+  "security": {
+    "iam": {
+      "service_accounts": [
+        {
+          "name": "pawmate-main-app",
+          "roles": [
+            "roles/firestore.user",
+            "roles/pubsub.subscriber",
+            "roles/storage.objectViewer"
+          ]
+        },
+        {
+          "name": "pawmate-visual-detective",
+          "roles": [
+            "roles/aiplatform.user",
+            "roles/storage.objectAdmin",
+            "roles/pubsub.subscriber"
+          ]
+        },
+        {
+          "name": "pawmate-behavior-predictor",
+          "roles": [
+            "roles/aiplatform.user",
+            "roles/pubsub.subscriber"
+          ]
+        },
+        {
+          "name": "pawmate-search-coordinator",
+          "roles": [
+            "roles/firestore.user",
+            "roles/pubsub.admin",
+            "roles/aiplatform.user"
+          ]
+        }
+      ]
+    },
+    "api_keys": {
+      "restrictions": {
+        "api_targets": [
+          "maps-backend.googleapis.com",
+          "vision.googleapis.com",
+          "aiplatform.googleapis.com"
+        ],
+        "ip_restrictions": {
+          "allowed_ips": ["0.0.0.0/0"]
+        }
+      }
+    }
+  },
+  "networking": {
+    "load_balancer": {
+      "type": "application",
+      "protocol": "HTTPS",
+      "ssl_certificate": "managed",
+      "backends": [
+        {
+          "service": "pawmate-main-app",
+          "weight": 100,
+          "health_check": {
+            "path": "/api/health",
+            "interval": "30s",
+            "timeout": "10s",
+            "healthy_threshold": 2,
+            "unhealthy_threshold": 3
+          }
+        }
+      ]
+    },
+    "cdn": {
+      "enabled": true,
+      "cache_mode": "USE_ORIGIN_HEADERS",
+      "default_ttl": "3600s",
+      "max_ttl": "86400s"
+    }
+  },
+  "backup": {
+    "firestore": {
+      "schedule": "0 2 * * *",
+      "retention_days": 30
+    },
+    "storage": {
+      "versioning": true,
+      "lifecycle_management": true
+    }
+  }
+}

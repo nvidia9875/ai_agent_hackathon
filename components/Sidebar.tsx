@@ -19,8 +19,7 @@ import {
   Settings as SettingsIcon,
   CameraAlt as CameraAltIcon,
   Psychology as PsychologyIcon,
-  Hub as HubIcon,
-  SupportAgent as SupportAgentIcon
+  Hub as HubIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -224,22 +223,6 @@ export default function Sidebar() {
               </ListItemButton>
             </ListItem>
 
-            <ListItem disablePadding>
-              <ListItemButton
-                sx={{ 
-                  borderRadius: 2,
-                  '&:hover': { backgroundColor: 'grey.100' }
-                }}
-              >
-                <ListItemIcon>
-                  <SupportAgentIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Emotional Support" 
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
           </List>
         </Box>
       </Box>
