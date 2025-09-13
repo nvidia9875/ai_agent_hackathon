@@ -12,9 +12,9 @@ import {
   Divider 
 } from '@mui/material';
 import {
-  Search as SearchIcon,
+  Pets as PawIcon,
   Dashboard as DashboardIcon,
-  Pets as PetsIcon,
+  FileUpload as FileUploadIcon,
   Forum as ForumIcon,
   Settings as SettingsIcon,
   CameraAlt as CameraAltIcon,
@@ -42,9 +42,9 @@ export default function Sidebar() {
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2 }}>
         {/* Logo */}
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4, px: 1 }}>
-          <SearchIcon sx={{ fontSize: 32, color: 'primary.main' }} />
+          <PawIcon sx={{ fontSize: 32, color: 'primary.main' }} />
           <Typography variant="h5" component="h1" fontWeight="bold">
-            PawMate
+            Upload Pet
           </Typography>
         </Box>
 
@@ -91,7 +91,7 @@ export default function Sidebar() {
               }}
             >
               <ListItemIcon>
-                <PetsIcon sx={{ color: pathname === '/upload-pet' ? 'primary.main' : 'inherit' }} />
+                <FileUploadIcon sx={{ color: pathname === '/upload-pet' ? 'primary.main' : 'inherit' }} />
               </ListItemIcon>
               <ListItemText 
                 primary="Upload Pet" 
@@ -183,24 +183,7 @@ export default function Sidebar() {
                   <CameraAltIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Visual Detective" 
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                sx={{ 
-                  borderRadius: 2,
-                  '&:hover': { backgroundColor: 'grey.100' }
-                }}
-              >
-                <ListItemIcon>
-                  <PsychologyIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="Behavior Predictor" 
+                  primary="Visual Detective Agent" 
                   primaryTypographyProps={{ fontSize: '0.875rem' }}
                 />
               </ListItemButton>
@@ -217,7 +200,24 @@ export default function Sidebar() {
                   <HubIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Search Coordinator" 
+                  primary="Search Coordinator Agent" 
+                  primaryTypographyProps={{ fontSize: '0.875rem' }}
+                />
+              </ListItemButton>
+            </ListItem>
+
+            <ListItem disablePadding>
+              <ListItemButton
+                sx={{ 
+                  borderRadius: 2,
+                  '&:hover': { backgroundColor: 'grey.100' }
+                }}
+              >
+                <ListItemIcon>
+                  <PsychologyIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText 
+                  primary="Behavior Predictor Agent" 
                   primaryTypographyProps={{ fontSize: '0.875rem' }}
                 />
               </ListItemButton>

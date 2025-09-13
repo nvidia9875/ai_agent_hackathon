@@ -35,7 +35,7 @@ export default function AgentStatus() {
         AI Agents Status
       </Typography>
 
-      {/* Visual Detective */}
+      {/* Visual Detective Agent */}
       <Paper
         elevation={0}
         sx={{
@@ -48,7 +48,7 @@ export default function AgentStatus() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle1" fontWeight="600">
-            Visual Detective
+            Visual Detective Agent
           </Typography>
           <Chip
             label="Active"
@@ -75,11 +75,11 @@ export default function AgentStatus() {
           }}
         />
         <Typography variant="caption" color="text.secondary">
-          Latest finding: Possible sighting near Oak Park.
+          画像解析により、オークパーク周辺でペットらしき動物を発見しました。
         </Typography>
       </Paper>
 
-      {/* Behavior Predictor */}
+      {/* Behavior Predictor Agent */}
       <Paper
         elevation={0}
         sx={{
@@ -92,7 +92,7 @@ export default function AgentStatus() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle1" fontWeight="600">
-            Behavior Predictor
+            Behavior Predictor Agent
           </Typography>
           <Chip
             label="Processing"
@@ -117,13 +117,12 @@ export default function AgentStatus() {
             }
           }}
         />
-        <Stack spacing={0.5} sx={{ py: 0.5 }}>
-          <Skeleton variant="text" width="100%" height={8} />
-          <Skeleton variant="text" width="85%" height={8} />
-        </Stack>
+        <Typography variant="caption" color="text.secondary">
+          ペットの行動パターンを分析し、次の移動先を予測しています。
+        </Typography>
       </Paper>
 
-      {/* Search Coordinator */}
+      {/* Search Coordinator Agent */}
       <Paper
         elevation={0}
         sx={{
@@ -136,7 +135,7 @@ export default function AgentStatus() {
       >
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
           <Typography variant="subtitle1" fontWeight="600">
-            Search Coordinator
+            Search Coordinator Agent
           </Typography>
           <Chip
             label="Active"
@@ -163,50 +162,7 @@ export default function AgentStatus() {
           }}
         />
         <Typography variant="caption" color="text.secondary">
-          Latest finding: Deploying drones to Zone 3.
-        </Typography>
-      </Paper>
-
-      {/* Emotional Support */}
-      <Paper
-        elevation={0}
-        sx={{
-          p: 2,
-          backgroundColor: 'grey.50',
-          border: '1px solid',
-          borderColor: 'grey.200',
-          borderRadius: 2
-        }}
-      >
-        <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-          <Typography variant="subtitle1" fontWeight="600">
-            Emotional Support
-          </Typography>
-          <Chip
-            label="Standby"
-            size="small"
-            sx={{
-              backgroundColor: 'info.100',
-              color: 'info.700',
-              fontSize: '0.75rem',
-              fontWeight: 500
-            }}
-          />
-        </Box>
-        <LinearProgress
-          variant="determinate"
-          value={100}
-          sx={{
-            height: 6,
-            borderRadius: 3,
-            mb: 1,
-            '& .MuiLinearProgress-bar': {
-              backgroundColor: 'info.main'
-            }
-          }}
-        />
-        <Typography variant="caption" color="text.secondary">
-          Ready to provide owner updates.
+          エリア3にドローンを配備し、効率的な捜索を指揮しています。
         </Typography>
       </Paper>
     </Box>

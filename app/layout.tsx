@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PawMate",
-  description: "AI-powered pet finding platform",
+  title: "Upload Pet",
+  description: "AI-powered pet upload and finding platform",
 };
 
 export default function RootLayout({
