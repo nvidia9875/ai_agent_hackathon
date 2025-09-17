@@ -44,7 +44,7 @@ export default function Sidebar() {
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4, px: 1 }}>
           <PawIcon sx={{ fontSize: 32, color: 'primary.main' }} />
           <Typography variant="h5" component="h1" fontWeight="bold">
-            Upload Pet
+            PawMate
           </Typography>
         </Box>
 
@@ -69,7 +69,7 @@ export default function Sidebar() {
                 <DashboardIcon sx={{ color: pathname === '/' ? 'primary.main' : 'inherit' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Dashboard" 
+                primary="ダッシュボード" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>
@@ -94,12 +94,36 @@ export default function Sidebar() {
                 <FileUploadIcon sx={{ color: pathname === '/upload-pet' ? 'primary.main' : 'inherit' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Upload Pet" 
+                primary="迷子ペット登録" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>
           </ListItem>
 
+          <ListItem disablePadding>
+            <ListItemButton
+              component={Link}
+              href="/found-pet"
+              sx={{ 
+                borderRadius: 2,
+                ...(pathname === '/found-pet' ? {
+                  backgroundColor: 'primary.50',
+                  color: 'primary.main',
+                  '&:hover': { backgroundColor: 'primary.100' }
+                } : {
+                  '&:hover': { backgroundColor: 'grey.100' }
+                })
+              }}
+            >
+              <ListItemIcon>
+                <PawIcon sx={{ color: pathname === '/found-pet' ? 'primary.main' : 'inherit' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="ペット発見報告" 
+                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
+              />
+            </ListItemButton>
+          </ListItem>
 
           <ListItem disablePadding>
             <ListItemButton
@@ -120,7 +144,7 @@ export default function Sidebar() {
                 <ForumIcon sx={{ color: pathname === '/ai-chat' ? 'primary.main' : 'inherit' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="AI Chat" 
+                primary="AIチャット" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>
@@ -145,7 +169,7 @@ export default function Sidebar() {
                 <SettingsIcon sx={{ color: pathname === '/settings' ? 'primary.main' : 'inherit' }} />
               </ListItemIcon>
               <ListItemText 
-                primary="Settings" 
+                primary="設定" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>
@@ -168,7 +192,7 @@ export default function Sidebar() {
               letterSpacing: '0.05em'
             }}
           >
-            AI Agents
+AIエージェント
           </Typography>
 
           <List dense>
@@ -183,7 +207,7 @@ export default function Sidebar() {
                   <CameraAltIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Visual Detective Agent" 
+                  primary="画像解析エージェント" 
                   primaryTypographyProps={{ fontSize: '0.875rem' }}
                 />
               </ListItemButton>
@@ -200,7 +224,7 @@ export default function Sidebar() {
                   <HubIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Search Coordinator Agent" 
+                  primary="捜索統括エージェント" 
                   primaryTypographyProps={{ fontSize: '0.875rem' }}
                 />
               </ListItemButton>
@@ -217,7 +241,7 @@ export default function Sidebar() {
                   <PsychologyIcon fontSize="small" />
                 </ListItemIcon>
                 <ListItemText 
-                  primary="Behavior Predictor Agent" 
+                  primary="行動予測エージェント" 
                   primaryTypographyProps={{ fontSize: '0.875rem' }}
                 />
               </ListItemButton>

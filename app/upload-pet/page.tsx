@@ -1,98 +1,888 @@
 'use client';
 
-import { Box, Typography, Paper, Button } from '@mui/material';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import {
+  Box,
+  Typography,
+  Paper,
+  TextField,
+  Button,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Grid,
+  IconButton,
+  Alert,
+  CircularProgress,
+  Chip,
+  FormHelperText,
+  Checkbox,
+  FormControlLabel,
+  Stepper,
+  Step,
+  StepLabel,
+  Card,
+  CardContent,
+  Divider,
+  LinearProgress,
+  InputAdornment
+} from '@mui/material';
+import {
+  CloudUpload as CloudUploadIcon,
+  Delete as DeleteIcon,
+  Save as SaveIcon,
+  Close as CloseIcon,
+  Pets as PetsIcon,
+  LocationOn as LocationIcon,
+  Phone as PhoneIcon,
+  Email as EmailIcon,
+  CalendarToday as CalendarIcon,
+  AccessTime as AccessTimeIcon,
+  PhotoCamera as PhotoCameraIcon,
+  Info as InfoIcon,
+  CheckCircle as CheckCircleIcon,
+  NavigateNext as NavigateNextIcon,
+  NavigateBefore as NavigateBeforeIcon
+} from '@mui/icons-material';
 import Sidebar from '@/components/Sidebar';
-import PhotoUpload from '@/components/PhotoUpload';
-import PetInfoForm from '@/components/PetInfoForm';
-import LastSeenForm from '@/components/LastSeenForm';
-import ContactInfoForm from '@/components/ContactInfoForm';
-import ProgressIndicator from '@/components/ProgressIndicator';
+import FormHeader from '@/components/FormHeader';
+import ProtectedRoute from '@/components/Auth/ProtectedRoute';
+import { db, storage } from '@/lib/firebase/config';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuth } from '@/lib/auth/auth-context';
 
-export default function UploadPetPage() {
+interface PetData {
+  // ペット情報
+  petName: string;
+  petType: string;
+  ageYears: string;
+  ageMonths: string;
+  ageUnknown: boolean;
+  size: string;
+  color: string;
+  features: string;
+  microchipNumber: string;
+  
+  // 最後に見た情報
+  lastSeenDate: string;
+  lastSeenTime: string;
+  lastSeenAddress: string;
+  lastSeenDetails: string;
+  lostReason: string;
+  additionalInfo: string;
+  
+  // 飼い主情報
+  ownerName: string;
+  ownerPhone: string;
+  ownerEmail: string;
+}
+
+const initialFormData: PetData = {
+  petName: '',
+  petType: '',
+  ageYears: '',
+  ageMonths: '',
+  ageUnknown: false,
+  size: '',
+  color: '',
+  features: '',
+  microchipNumber: '',
+  lastSeenDate: '',
+  lastSeenTime: '',
+  lastSeenAddress: '',
+  lastSeenDetails: '',
+  lostReason: '',
+  additionalInfo: '',
+  ownerName: '',
+  ownerPhone: '',
+  ownerEmail: ''
+};
+
+const petTypes = ['犬', '猫', '鳥', 'うさぎ', 'その他'];
+const petSizes = [
+  '10cm未満',
+  '10-30cm',
+  '30-50cm',
+  '50-70cm',
+  '70-100cm',
+  '100cm以上'
+];
+const lostReasons = [
+  '散歩中に逃げた',
+  '家から脱走',
+  '雷や花火で驚いて逃げた',
+  '車から逃げた',
+  '預け先から逃げた',
+  'その他'
+];
+
+// 年齢選択用の配列
+const years = Array.from({ length: 21 }, (_, i) => i.toString()); // 0-20年
+const months = Array.from({ length: 12 }, (_, i) => i.toString()); // 0-11ヶ月
+
+const steps = ['ペット情報', '写真', '最後の目撃情報', '飼い主情報'];
+
+function UploadPetContent() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [formData, setFormData] = useState<PetData>(initialFormData);
+  const [images, setImages] = useState<File[]>([]);
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof PetData, boolean>>>({});
+  const [success, setSuccess] = useState(false);
+  
+  const router = useRouter();
+  const { user } = useAuth();
+
+  const handleInputChange = (field: keyof PetData) => (
+    event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
+  ) => {
+    setFormData(prev => ({
+      ...prev,
+      [field]: event.target.value
+    }));
+  };
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    const validFiles = files.filter(file => 
+      file.type === 'image/jpeg' || file.type === 'image/png'
+    );
+    
+    if (images.length + validFiles.length > 10) {
+      setError('画像は最大10枚までアップロードできます');
+      return;
+    }
+    
+    const newImages = [...images, ...validFiles];
+    setImages(newImages);
+    
+    // プレビューURL生成
+    const newPreviewUrls = validFiles.map(file => URL.createObjectURL(file));
+    setImagePreviewUrls([...imagePreviewUrls, ...newPreviewUrls]);
+  };
+
+  const handleRemoveImage = (index: number) => {
+    const newImages = images.filter((_, i) => i !== index);
+    const newPreviewUrls = imagePreviewUrls.filter((_, i) => i !== index);
+    setImages(newImages);
+    setImagePreviewUrls(newPreviewUrls);
+  };
+
+  const validateStep = (step: number): boolean => {
+    const errors: Partial<Record<keyof PetData, boolean>> = {};
+    let hasError = false;
+    
+    switch (step) {
+      case 0: // ペット情報
+        if (!formData.petName) {
+          errors.petName = true;
+          hasError = true;
+        }
+        if (!formData.petType) {
+          errors.petType = true;
+          hasError = true;
+        }
+        if (hasError) {
+          setError('ペットの名前と種類は必須です');
+          setFieldErrors(errors);
+          return false;
+        }
+        break;
+      case 1: // 写真
+        if (images.length < 2) {
+          setError('画像は最低2枚必要です');
+          return false;
+        }
+        break;
+      case 2: // 最後の目撃情報
+        if (!formData.lastSeenDate) {
+          errors.lastSeenDate = true;
+          hasError = true;
+        }
+        if (!formData.lastSeenAddress) {
+          errors.lastSeenAddress = true;
+          hasError = true;
+        }
+        if (hasError) {
+          setError('最後に見た日付と場所は必須です');
+          setFieldErrors(errors);
+          return false;
+        }
+        break;
+      case 3: // 飼い主情報
+        if (!formData.ownerName) {
+          errors.ownerName = true;
+          hasError = true;
+        }
+        if (!formData.ownerPhone) {
+          errors.ownerPhone = true;
+          hasError = true;
+        }
+        if (hasError) {
+          setError('飼い主の名前と電話番号は必須です');
+          setFieldErrors(errors);
+          return false;
+        }
+        break;
+    }
+    setError('');
+    setFieldErrors({});
+    return true;
+  };
+
+  const handleNext = () => {
+    if (validateStep(activeStep)) {
+      setActiveStep((prevStep) => prevStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    setActiveStep((prevStep) => prevStep - 1);
+    setError('');
+    setFieldErrors({});
+  };
+
+  const handleSubmit = async () => {
+    setError('');
+    
+    if (!validateStep(3)) {
+      return;
+    }
+    
+    setLoading(true);
+    
+    try {
+      // 画像をFirebase Storageにアップロード
+      const imageUrls: string[] = [];
+      for (let i = 0; i < images.length; i++) {
+        const image = images[i];
+        const storageRef = ref(storage, `pets/${user?.uid}/${Date.now()}_${i}_${image.name}`);
+        const snapshot = await uploadBytes(storageRef, image);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+        imageUrls.push(downloadUrl);
+      }
+      
+      // Firestoreにデータを保存
+      const docRef = await addDoc(collection(db, 'lostPets'), {
+        ...formData,
+        imageUrls,
+        userId: user?.uid,
+        userEmail: user?.email,
+        status: 'lost',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      
+      console.log('Document written with ID: ', docRef.id);
+      setSuccess(true);
+      
+      // 3秒後にホームページへリダイレクト
+      setTimeout(() => {
+        router.push('/');
+      }, 3000);
+      
+    } catch (error: any) {
+      console.error('Error adding document: ', error);
+      setError('登録に失敗しました: ' + error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <PetsIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <Typography variant="h5" fontWeight="600">
+                  ペットの基本情報
+                </Typography>
+              </Box>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="ペットの名前"
+                    value={formData.petName}
+                    onChange={handleInputChange('petName')}
+                    required
+                    variant="outlined"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PetsIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    helperText="普段呼んでいる名前を入力してください"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth required>
+                    <InputLabel>ペットの種類</InputLabel>
+                    <Select
+                      value={formData.petType}
+                      onChange={(e) => handleInputChange('petType')(e)}
+                      label="ペットの種類"
+                    >
+                      {petTypes.map(type => (
+                        <MenuItem key={type} value={type}>{type}</MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>該当する種類を選択してください</FormHelperText>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="年齢情報" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
+                    <FormControl sx={{ minWidth: 120 }} disabled={formData.ageUnknown}>
+                      <InputLabel>年</InputLabel>
+                      <Select
+                        value={formData.ageYears}
+                        onChange={(e) => handleInputChange('ageYears')(e)}
+                        label="年"
+                      >
+                        {years.map(year => (
+                          <MenuItem key={year} value={year}>{year}年</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <FormControl sx={{ minWidth: 120 }} disabled={formData.ageUnknown}>
+                      <InputLabel>月</InputLabel>
+                      <Select
+                        value={formData.ageMonths}
+                        onChange={(e) => handleInputChange('ageMonths')(e)}
+                        label="月"
+                      >
+                        {months.map(month => (
+                          <MenuItem key={month} value={month}>{month}ヶ月</MenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                    
+                    <FormControlLabel
+                      control={
+                        <Checkbox
+                          checked={formData.ageUnknown}
+                          onChange={(e) => setFormData(prev => ({
+                            ...prev,
+                            ageUnknown: e.target.checked,
+                            ageYears: e.target.checked ? '' : prev.ageYears,
+                            ageMonths: e.target.checked ? '' : prev.ageMonths
+                          }))}
+                        />
+                      }
+                      label="年齢不明"
+                    />
+                  </Box>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="外見の特徴" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>サイズ（全長）</InputLabel>
+                    <Select
+                      value={formData.size}
+                      onChange={(e) => handleInputChange('size')(e)}
+                      label="サイズ（全長）"
+                    >
+                      {petSizes.map(size => (
+                        <MenuItem key={size} value={size}>{size}</MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>鼻先から尾の付け根までの長さ</FormHelperText>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="毛色・模様"
+                    value={formData.color}
+                    onChange={handleInputChange('color')}
+                    placeholder="例: 茶色と白のぶち"
+                    helperText="特徴的な色や模様を記入"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="マイクロチップ番号"
+                    value={formData.microchipNumber}
+                    onChange={handleInputChange('microchipNumber')}
+                    placeholder="15桁の番号"
+                    helperText="装着している場合は入力"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="その他の特徴"
+                    value={formData.features}
+                    onChange={handleInputChange('features')}
+                    placeholder="首輪の色、傷跡、性格など"
+                    helperText="見つけやすい特徴を詳しく記入してください"
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+        
+      case 1:
+        return (
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <PhotoCameraIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <Typography variant="h5" fontWeight="600">
+                  ペットの写真
+                </Typography>
+              </Box>
+              
+              <Alert severity="info" sx={{ mb: 3 }}>
+                できるだけ多くの角度から撮影した写真をアップロードしてください。
+                AI解析の精度が向上します。
+              </Alert>
+              
+              <Box sx={{ 
+                border: '2px dashed',
+                borderColor: 'grey.300',
+                borderRadius: 2,
+                p: 3,
+                textAlign: 'center',
+                bgcolor: 'grey.50'
+              }}>
+                <PhotoCameraIcon sx={{ fontSize: 48, color: 'grey.400', mb: 2 }} />
+                
+                <Typography variant="body1" color="text.secondary" gutterBottom>
+                  最低2枚、最大10枚まで（JPG, PNG形式）
+                </Typography>
+                
+                <input
+                  accept="image/jpeg,image/png"
+                  style={{ display: 'none' }}
+                  id="image-upload"
+                  multiple
+                  type="file"
+                  onChange={handleImageUpload}
+                  disabled={images.length >= 10}
+                />
+                <label htmlFor="image-upload">
+                  <Button
+                    variant="contained"
+                    component="span"
+                    startIcon={<CloudUploadIcon />}
+                    disabled={images.length >= 10}
+                    sx={{ mt: 2 }}
+                  >
+                    画像を選択（{images.length}/10）
+                  </Button>
+                </label>
+              </Box>
+              
+              {imagePreviewUrls.length > 0 && (
+                <Box sx={{ mt: 3 }}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    アップロード済み画像
+                  </Typography>
+                  <Grid container spacing={2}>
+                    {imagePreviewUrls.map((url, index) => (
+                      <Grid item xs={6} sm={4} md={3} key={index}>
+                        <Paper sx={{ 
+                          position: 'relative',
+                          paddingTop: '100%',
+                          overflow: 'hidden',
+                          borderRadius: 2
+                        }}>
+                          <Box
+                            component="img"
+                            src={url}
+                            alt={`Pet ${index + 1}`}
+                            sx={{
+                              position: 'absolute',
+                              top: 0,
+                              left: 0,
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover'
+                            }}
+                          />
+                          <IconButton
+                            size="small"
+                            sx={{
+                              position: 'absolute',
+                              top: 4,
+                              right: 4,
+                              bgcolor: 'rgba(255,255,255,0.9)',
+                              '&:hover': {
+                                bgcolor: 'rgba(255,255,255,1)'
+                              }
+                            }}
+                            onClick={() => handleRemoveImage(index)}
+                          >
+                            <DeleteIcon fontSize="small" />
+                          </IconButton>
+                          <Chip
+                            label={`写真 ${index + 1}`}
+                            size="small"
+                            sx={{
+                              position: 'absolute',
+                              bottom: 4,
+                              left: 4,
+                              bgcolor: 'rgba(255,255,255,0.9)'
+                            }}
+                          />
+                        </Paper>
+                      </Grid>
+                    ))}
+                  </Grid>
+                </Box>
+              )}
+            </CardContent>
+          </Card>
+        );
+        
+      case 2:
+        return (
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <LocationIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <Typography variant="h5" fontWeight="600">
+                  最後の目撃情報
+                </Typography>
+              </Box>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    type="date"
+                    label="最後に見た日付"
+                    value={formData.lastSeenDate}
+                    onChange={handleInputChange('lastSeenDate')}
+                    InputLabelProps={{ shrink: true }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <CalendarIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    required
+                    helperText="いなくなった日付を選択"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    type="time"
+                    label="最後に見た時間"
+                    value={formData.lastSeenTime}
+                    onChange={handleInputChange('lastSeenTime')}
+                    InputLabelProps={{ shrink: true }}
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <AccessTimeIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    helperText="おおよその時間で構いません"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="場所の詳細" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="最後に見た場所（住所）"
+                    value={formData.lastSeenAddress}
+                    onChange={handleInputChange('lastSeenAddress')}
+                    error={fieldErrors.lastSeenAddress}
+                    placeholder="例: 東京都渋谷区道玄坂1-2-3"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <LocationIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    required
+                    helperText={fieldErrors.lastSeenAddress ? '必須項目です' : 'できるだけ詳しい住所を入力'}
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    label="場所の詳細"
+                    value={formData.lastSeenDetails}
+                    onChange={handleInputChange('lastSeenDetails')}
+                    placeholder="例: ○○公園の管理事務所の近く"
+                    helperText="目印になる建物や特徴を記入"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="いなくなった状況" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControl fullWidth>
+                    <InputLabel>いなくなった理由</InputLabel>
+                    <Select
+                      value={formData.lostReason}
+                      onChange={(e) => handleInputChange('lostReason')(e)}
+                      label="いなくなった理由"
+                    >
+                      {lostReasons.map(reason => (
+                        <MenuItem key={reason} value={reason}>{reason}</MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>該当するものを選択</FormHelperText>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <TextField
+                    fullWidth
+                    multiline
+                    rows={3}
+                    label="その他の情報"
+                    value={formData.additionalInfo}
+                    onChange={handleInputChange('additionalInfo')}
+                    placeholder="いなくなった時の状況、ペットの習性など"
+                    helperText="捜索に役立つ情報があれば記入してください"
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+        
+      case 3:
+        return (
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
+            <CardContent sx={{ p: 4 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
+                <PhoneIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <Typography variant="h5" fontWeight="600">
+                  飼い主情報
+                </Typography>
+              </Box>
+              
+              <Alert severity="info" sx={{ mb: 3 }}>
+                発見者から連絡を受けるための重要な情報です。正確に入力してください。
+              </Alert>
+              
+              <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="お名前"
+                    value={formData.ownerName}
+                    onChange={handleInputChange('ownerName')}
+                    required
+                    helperText="フルネームを入力"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="電話番号"
+                    value={formData.ownerPhone}
+                    onChange={handleInputChange('ownerPhone')}
+                    placeholder="090-1234-5678"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <PhoneIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    required
+                    helperText="日中連絡がつく番号"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    type="email"
+                    label="メールアドレス"
+                    value={formData.ownerEmail}
+                    onChange={handleInputChange('ownerEmail')}
+                    placeholder="example@email.com"
+                    InputProps={{
+                      startAdornment: (
+                        <InputAdornment position="start">
+                          <EmailIcon fontSize="small" color="action" />
+                        </InputAdornment>
+                      ),
+                    }}
+                    helperText="任意：メールでも連絡を受け取る場合"
+                  />
+                </Grid>
+              </Grid>
+            </CardContent>
+          </Card>
+        );
+        
+      default:
+        return null;
+    }
+  };
+
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
       <Sidebar />
       
-      <Box sx={{ 
-        flex: 1, 
-        backgroundColor: 'grey.50', 
-        p: 4,
-        overflow: 'auto'
-      }}>
-        <Box sx={{ maxWidth: 800, mx: 'auto' }}>
-          {/* Progress Section */}
-          <Box sx={{ textAlign: 'center', mb: 6 }}>
-            <Typography variant="h3" fontWeight="bold" gutterBottom>
-              Let's Find Your Pet
-            </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-              Step 1 of 4
-            </Typography>
-            <ProgressIndicator step={1} totalSteps={4} />
-          </Box>
-
-          {/* Form Sections */}
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-            <Paper elevation={0} sx={{ p: 4, backgroundColor: 'white' }}>
-              <PhotoUpload />
-            </Paper>
-            
-            <Paper elevation={0} sx={{ p: 4, backgroundColor: 'white' }}>
-              <PetInfoForm />
-            </Paper>
-            
-            <Paper elevation={0} sx={{ p: 4, backgroundColor: 'white' }}>
-              <LastSeenForm />
-            </Paper>
-            
-            <Paper elevation={0} sx={{ p: 4, backgroundColor: 'white' }}>
-              <ContactInfoForm />
-            </Paper>
-          </Box>
-
-          {/* Footer Actions */}
-          <Box sx={{ 
-            mt: 6, 
-            pt: 3,
-            borderTop: '1px solid',
-            borderColor: 'divider'
-          }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-              <Button
-                variant="outlined"
-                sx={{ minWidth: 100, px: 4, py: 1.5 }}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="contained"
-                sx={{ minWidth: 100, px: 4, py: 1.5 }}
-              >
-                Next Step
-              </Button>
-            </Box>
-            
-            <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="caption" color="text.secondary" display="block" sx={{ mb: 1 }}>
-                Auto-saved
+      <Box sx={{ flex: 1, overflow: 'auto' }}>
+        <FormHeader 
+          title="迷子ペット登録"
+          subtitle="AIが24時間体制でペットを探します"
+        />
+        
+        <Box sx={{ maxWidth: 1000, mx: 'auto', px: 4, py: 4 }}>
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
+              {error}
+            </Alert>
+          )}
+          
+          {success && (
+            <Alert 
+              severity="success" 
+              sx={{ mb: 3 }}
+              icon={<CheckCircleIcon />}
+            >
+              <Typography variant="subtitle1" fontWeight="bold">
+                登録が完了しました！
               </Typography>
-              <Typography variant="body2" fontWeight="500" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1 }}>
-                <Box component="span" sx={{ 
-                  display: 'inline-block', 
-                  animation: 'spin 2s linear infinite',
-                  '@keyframes spin': {
-                    '0%': { transform: 'rotate(0deg)' },
-                    '100%': { transform: 'rotate(360deg)' }
-                  }
-                }}>
-                  🔄
+              <Typography variant="body2">
+                AIエージェントが捜索を開始します。3秒後にダッシュボードへ移動します...
+              </Typography>
+            </Alert>
+          )}
+
+          <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
+            <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+              {steps.map((label) => (
+                <Step key={label}>
+                  <StepLabel>{label}</StepLabel>
+                </Step>
+              ))}
+            </Stepper>
+            
+            {activeStep === 4 ? (
+              <Box sx={{ textAlign: 'center', py: 4 }}>
+                <CheckCircleIcon sx={{ fontSize: 64, color: 'success.main', mb: 2 }} />
+                <Typography variant="h5" gutterBottom>
+                  登録完了
+                </Typography>
+                <Typography color="text.secondary">
+                  AIエージェントが捜索を開始しました
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {getStepContent(activeStep)}
+                
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 4 }}>
+                  <Button
+                    disabled={activeStep === 0}
+                    onClick={handleBack}
+                    startIcon={<NavigateBeforeIcon />}
+                  >
+                    戻る
+                  </Button>
+                  
+                  {activeStep === steps.length - 1 ? (
+                    <Button
+                      variant="contained"
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
+                      sx={{
+                        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                        '&:hover': {
+                          background: 'linear-gradient(135deg, #5a67d8 0%, #6b4199 100%)',
+                        }
+                      }}
+                    >
+                      {loading ? '登録中...' : '登録してAI捜索を開始'}
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="contained"
+                      onClick={handleNext}
+                      endIcon={<NavigateNextIcon />}
+                    >
+                      次へ
+                    </Button>
+                  )}
                 </Box>
-                Our AI is already starting to search...
-              </Typography>
+              </>
+            )}
+          </Paper>
+          
+          {activeStep < steps.length && (
+            <Box sx={{ mt: 2, p: 2, bgcolor: 'info.50', borderRadius: 1 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                <InfoIcon sx={{ mr: 1, color: 'info.main' }} />
+                <Typography variant="body2" color="text.secondary">
+                  すべての情報を入力すると、AIの捜索精度が向上します
+                </Typography>
+              </Box>
             </Box>
-          </Box>
+          )}
         </Box>
       </Box>
     </Box>
+  );
+}
+
+export default function UploadPetPage() {
+  return (
+    <ProtectedRoute>
+      <UploadPetContent />
+    </ProtectedRoute>
   );
 }

@@ -5,13 +5,15 @@ import {
   Toolbar, 
   Box, 
   Chip, 
-  IconButton, 
-  Avatar 
+  IconButton 
 } from '@mui/material';
 import { 
   Notifications as NotificationsIcon 
 } from '@mui/icons-material';
 import { keyframes } from '@mui/system';
+import { useAuth } from '@/lib/auth/auth-context';
+import LoginButton from '@/components/Auth/LoginButton';
+import UserProfile from '@/components/Auth/UserProfile';
 
 const pulse = keyframes`
   0%, 100% {
@@ -23,6 +25,7 @@ const pulse = keyframes`
 `;
 
 export default function Header() {
+  const { user, loading } = useAuth();
   return (
     <AppBar 
       position="static" 
@@ -48,7 +51,7 @@ export default function Header() {
                 }}
               />
             }
-            label="Search Active"
+            label="捜索中"
             variant="outlined"
             sx={{
               backgroundColor: 'primary.50',
@@ -62,10 +65,12 @@ export default function Header() {
         </Box>
         
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-          <IconButton color="inherit">
-            <NotificationsIcon />
-          </IconButton>
-          <Avatar sx={{ width: 40, height: 40, bgcolor: 'grey.300' }} />
+          {user && (
+            <IconButton color="inherit">
+              <NotificationsIcon />
+            </IconButton>
+          )}
+          {loading ? null : user ? <UserProfile /> : <LoginButton />}
         </Box>
       </Toolbar>
     </AppBar>

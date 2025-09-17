@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import CustomThemeProvider from "@/components/ThemeProvider";
+import { AuthProvider } from "@/lib/auth/auth-context";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -14,8 +15,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Upload Pet",
-  description: "AI-powered pet upload and finding platform",
+  title: "PawMate - AI迷子ペット捜索システム",
+  description: "PawMate（パウメイト）は、3つの自律的AIエージェントが連携して迷子のペットを見つける革新的な捜索支援システムです。画像解析、行動予測、捜索戦略の最適化により、大切な家族との再会をサポートします。",
 };
 
 export default function RootLayout({
@@ -24,7 +25,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="ja">
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
         <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" rel="stylesheet" />
@@ -32,9 +33,11 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <CustomThemeProvider>
-          {children}
-        </CustomThemeProvider>
+        <AuthProvider>
+          <CustomThemeProvider>
+            {children}
+          </CustomThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );

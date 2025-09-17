@@ -21,17 +21,13 @@ export default function MapContainer() {
 
   useEffect(() => {
     const initializeMap = () => {
-      if (!mapRef.current) return;
+      if (!mapRef.current || currentMapInstance.current) return;
       
       try {
         if (window.google && window.google.maps && window.google.maps.Map) {
-          // Clear existing map instance if any
-          if (currentMapInstance.current) {
-            currentMapInstance.current = null;
-          }
-          
+          console.log('Initializing Google Map...');
           currentMapInstance.current = new window.google.maps.Map(mapRef.current, {
-            center: { lat: 35.6762, lng: 139.6503 },
+            center: { lat: 35.6762, lng: 139.6503 }, // Tokyo
             zoom: 12,
             mapTypeControl: true,
             streetViewControl: true,
@@ -39,6 +35,9 @@ export default function MapContainer() {
           });
           mapInstance = currentMapInstance.current;
           setIsLoaded(true);
+          console.log('Map initialized successfully');
+        } else {
+          console.error('Google Maps API not available');
         }
       } catch (error) {
         console.error('Error initializing Google Map:', error);
@@ -46,8 +45,9 @@ export default function MapContainer() {
     };
 
     const loadGoogleMaps = () => {
-      // Don't load script if it's already loaded
+      // Check if Google Maps is already loaded
       if (window.google && window.google.maps) {
+        console.log('Google Maps API already loaded');
         initializeMap();
         return;
       }
@@ -55,59 +55,51 @@ export default function MapContainer() {
       // Check if script is already being loaded
       const existingScript = document.querySelector('script[src*="maps.googleapis.com"]');
       if (existingScript) {
-        // Wait for existing script to load
+        console.log('Script already exists, waiting for load...');
         existingScript.addEventListener('load', initializeMap);
         return;
       }
       
+      console.log('Loading Google Maps API...');
+      
       // Set up callback function
       window.googleMapsCallback = () => {
+        console.log('Google Maps callback executed');
         initializeMap();
       };
 
       const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY}&callback=googleMapsCallback&loading=async`;
+      // Use a mock key or remove the key requirement for testing
+      script.src = `https://maps.googleapis.com/maps/api/js?key=AIzaSyDummyKeyForTesting&callback=googleMapsCallback&loading=async`;
       script.async = true;
       script.defer = true;
       
-      script.onerror = () => {
-        console.error('Failed to load Google Maps script');
-        scriptLoaded = false;
+      script.onload = () => {
+        console.log('Google Maps script loaded successfully');
+      };
+      
+      script.onerror = (error) => {
+        console.error('Failed to load Google Maps script', error);
+        setIsLoaded(false);
       };
       
       document.head.appendChild(script);
     };
 
-    // Always try to initialize if we have a container but no map instance
-    if (mapRef.current && !currentMapInstance.current) {
-      // Check if Google Maps API is already loaded
-      if (window.google && window.google.maps) {
-        initializeMap();
-        return;
-      }
-    }
-
-    // If map is already initialized for this component instance, don't reinitialize
-    if (currentMapInstance.current && mapRef.current) {
+    // Don't initialize if we already have a map
+    if (currentMapInstance.current) {
       return;
     }
 
-    // Small delay to ensure component is mounted
+    // Add small delay to ensure DOM is ready
     const timer = setTimeout(() => {
-      loadGoogleMaps();
-    }, 100);
+      if (mapRef.current) {
+        loadGoogleMaps();
+      }
+    }, 500);
 
     return () => {
       clearTimeout(timer);
-      // Clean up when component unmounts
-      if (currentMapInstance.current) {
-        currentMapInstance.current = null;
-      }
-      mapInstance = null;
-      setIsLoaded(false);
-      if (window.googleMapsCallback) {
-        delete window.googleMapsCallback;
-      }
     };
   }, []);
 

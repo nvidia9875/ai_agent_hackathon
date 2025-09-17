@@ -17,6 +17,7 @@ import {
   Logout as LogoutIcon
 } from '@mui/icons-material';
 import Sidebar from '@/components/Sidebar';
+import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 
 interface Message {
   id: number;
@@ -26,7 +27,7 @@ interface Message {
   sender: string;
 }
 
-export default function AiChatPage() {
+function AiChatContent() {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
@@ -278,5 +279,13 @@ export default function AiChatPage() {
         </Box>
       </Box>
     </Box>
+  );
+}
+
+export default function AiChatPage() {
+  return (
+    <ProtectedRoute>
+      <AiChatContent />
+    </ProtectedRoute>
   );
 }

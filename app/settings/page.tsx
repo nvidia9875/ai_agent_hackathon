@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import ProtectedRoute from '@/components/Auth/ProtectedRoute';
 import {
   Box,
   Typography,
@@ -29,7 +30,7 @@ interface UserSettings {
   pushNotifications: boolean;
 }
 
-export default function SettingsPage() {
+function SettingsContent() {
   const [settings, setSettings] = useState<UserSettings>({
     name: 'Sophia Clark',
     email: 'sophia.clark@example.com',
@@ -286,5 +287,13 @@ export default function SettingsPage() {
         </Box>
       </Box>
     </Box>
+  );
+}
+
+export default function SettingsPage() {
+  return (
+    <ProtectedRoute>
+      <SettingsContent />
+    </ProtectedRoute>
   );
 }
