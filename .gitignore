@@ -20,6 +20,12 @@
 # production
 /build
 
+# credentials and keys
+credentials.json
+firebase-admin-key.json
+*.key
+serviceAccountKey.json
+
 # misc
 .DS_Store
 *.pem

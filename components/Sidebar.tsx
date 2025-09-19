@@ -3,29 +3,28 @@
 import { 
   Drawer, 
   Box, 
-  Typography, 
   List, 
   ListItem, 
   ListItemButton, 
   ListItemIcon, 
   ListItemText,
-  Divider 
+  Badge,
+  Typography
 } from '@mui/material';
 import {
   Pets as PawIcon,
   Dashboard as DashboardIcon,
   FileUpload as FileUploadIcon,
   Forum as ForumIcon,
-  Settings as SettingsIcon,
-  CameraAlt as CameraAltIcon,
-  Psychology as PsychologyIcon,
-  Hub as HubIcon
+  Settings as SettingsIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useNotifications } from '@/lib/contexts/notification-context';
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const { unreadCount } = useNotifications();
   return (
     <Drawer
       variant="permanent"
@@ -35,22 +34,17 @@ export default function Sidebar() {
         '& .MuiDrawer-paper': {
           width: 240,
           boxSizing: 'border-box',
-          position: 'static',
+          position: 'fixed',
+          top: 64, // ヘッダーの高さ
+          height: 'calc(100vh - 64px)',
+          zIndex: 1000,
         },
       }}
     >
       <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', p: 2 }}>
-        {/* Logo */}
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 4, px: 1 }}>
-          <PawIcon sx={{ fontSize: 32, color: 'primary.main' }} />
-          <Typography variant="h5" component="h1" fontWeight="bold">
-            PawMate
-          </Typography>
-        </Box>
-
         {/* Navigation */}
         <List sx={{ flexGrow: 1 }}>
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               component={Link}
               href="/"
@@ -75,7 +69,7 @@ export default function Sidebar() {
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               component={Link}
               href="/upload-pet"
@@ -100,7 +94,7 @@ export default function Sidebar() {
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               component={Link}
               href="/found-pet"
@@ -125,13 +119,13 @@ export default function Sidebar() {
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               component={Link}
-              href="/ai-chat"
+              href="/chat"
               sx={{ 
                 borderRadius: 2,
-                ...(pathname === '/ai-chat' ? {
+                ...(pathname === '/chat' ? {
                   backgroundColor: 'primary.50',
                   color: 'primary.main',
                   '&:hover': { backgroundColor: 'primary.100' }
@@ -141,16 +135,18 @@ export default function Sidebar() {
               }}
             >
               <ListItemIcon>
-                <ForumIcon sx={{ color: pathname === '/ai-chat' ? 'primary.main' : 'inherit' }} />
+                <Badge badgeContent={unreadCount} color="error" max={99}>
+                  <ForumIcon sx={{ color: pathname === '/chat' ? 'primary.main' : 'inherit' }} />
+                </Badge>
               </ListItemIcon>
               <ListItemText 
-                primary="AIチャット" 
+                primary="チャット" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding>
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
             <ListItemButton
               component={Link}
               href="/settings"
@@ -175,80 +171,6 @@ export default function Sidebar() {
             </ListItemButton>
           </ListItem>
         </List>
-
-        <Divider sx={{ my: 2 }} />
-
-        {/* AI Agents Section */}
-        <Box>
-          <Typography 
-            variant="caption" 
-            sx={{ 
-              px: 2, 
-              mb: 1, 
-              display: 'block',
-              fontWeight: 600,
-              color: 'grey.500',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em'
-            }}
-          >
-AIエージェント
-          </Typography>
-
-          <List dense>
-            <ListItem disablePadding>
-              <ListItemButton
-                sx={{ 
-                  borderRadius: 2,
-                  '&:hover': { backgroundColor: 'grey.100' }
-                }}
-              >
-                <ListItemIcon>
-                  <CameraAltIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="画像解析エージェント" 
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                sx={{ 
-                  borderRadius: 2,
-                  '&:hover': { backgroundColor: 'grey.100' }
-                }}
-              >
-                <ListItemIcon>
-                  <HubIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="捜索統括エージェント" 
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
-
-            <ListItem disablePadding>
-              <ListItemButton
-                sx={{ 
-                  borderRadius: 2,
-                  '&:hover': { backgroundColor: 'grey.100' }
-                }}
-              >
-                <ListItemIcon>
-                  <PsychologyIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText 
-                  primary="行動予測エージェント" 
-                  primaryTypographyProps={{ fontSize: '0.875rem' }}
-                />
-              </ListItemButton>
-            </ListItem>
-
-          </List>
-        </Box>
       </Box>
     </Drawer>
   );

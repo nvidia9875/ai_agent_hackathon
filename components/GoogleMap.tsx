@@ -2,13 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Box, Typography, Alert, CircularProgress } from '@mui/material';
-
-declare global {
-  interface Window {
-    google: any;
-    initMap: () => void;
-  }
-}
+import { loadGoogleMaps, isGoogleMapsLoaded } from '@/lib/google-maps-loader';
 
 interface MapLocation {
   lat: number;
@@ -30,47 +24,24 @@ export default function GoogleMap() {
   const [map, setMap] = useState<any>(null);
 
   useEffect(() => {
-    const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY;
-    
-    if (!apiKey) {
-      setError('Google Maps APIキーが設定されていません');
-      setIsLoading(false);
-      return;
-    }
+    const loadMap = async () => {
+      try {
+        // 既に読み込まれている場合はすぐに初期化
+        if (isGoogleMapsLoaded()) {
+          initializeMap();
+          return;
+        }
 
-    // Google Maps APIが既に読み込まれている場合
-    if (window.google && window.google.maps) {
-      initializeMap();
-      return;
-    }
-
-    // Google Maps APIを動的に読み込む
-    const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
-    
-    window.initMap = initializeMap;
-    script.onload = () => {
-      // スクリプトが読み込まれた後、少し待ってから初期化
-      setTimeout(initializeMap, 100);
-    };
-    
-    script.onerror = () => {
-      setError('Google Maps APIの読み込みに失敗しました');
-      setIsLoading(false);
-    };
-
-    document.head.appendChild(script);
-
-    return () => {
-      // クリーンアップ
-      const existingScript = document.querySelector(`script[src*="maps.googleapis.com"]`);
-      if (existingScript) {
-        document.head.removeChild(existingScript);
+        // Google Maps APIを読み込み
+        await loadGoogleMaps();
+        initializeMap();
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Google Maps APIの読み込みに失敗しました');
+        setIsLoading(false);
       }
-      delete window.initMap;
     };
+
+    loadMap();
   }, []);
 
   const initializeMap = () => {

@@ -1,80 +1,101 @@
 'use client';
 
-import { Box, Typography, IconButton } from '@mui/material';
-import { ArrowBack as ArrowBackIcon } from '@mui/icons-material';
-import { useRouter } from 'next/navigation';
+import { Box, Typography, Paper } from '@mui/material';
+import { Pets as PetsIcon } from '@mui/icons-material';
 
 interface FormHeaderProps {
   title: string;
   subtitle?: string;
-  showBackButton?: boolean;
 }
 
-export default function FormHeader({ title, subtitle, showBackButton = true }: FormHeaderProps) {
-  const router = useRouter();
+export default function FormHeader({ title, subtitle }: FormHeaderProps) {
 
   return (
     <Box
       sx={{
-        backgroundColor: 'white',
-        borderBottom: '1px solid',
-        borderColor: 'divider',
-        position: 'sticky',
-        top: 0,
-        zIndex: 100,
-        boxShadow: '0 1px 3px rgba(0,0,0,0.05)'
+        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        position: 'relative',
+        overflow: 'hidden',
+        pt: 8,
+        pb: 6,
+        '&::before': {
+          content: '""',
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundImage: 'radial-gradient(circle at 20% 50%, rgba(255, 255, 255, 0.1) 0%, transparent 50%), radial-gradient(circle at 80% 80%, rgba(255, 255, 255, 0.05) 0%, transparent 50%)',
+          pointerEvents: 'none'
+        },
+        '&::after': {
+          content: '""',
+          position: 'absolute',
+          bottom: -2,
+          left: 0,
+          right: 0,
+          height: '100px',
+          background: 'linear-gradient(0deg, rgba(245, 245, 245, 1) 0%, transparent 100%)',
+          pointerEvents: 'none'
+        }
       }}
     >
       <Box
         sx={{
+          position: 'relative',
           maxWidth: 1200,
           mx: 'auto',
-          px: { xs: 2, sm: 3, md: 4 },
-          py: 2.5,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 2
+          px: { xs: 3, sm: 4, md: 6 },
+          textAlign: 'center',
+          zIndex: 1
         }}
       >
-        {showBackButton && (
-          <IconButton 
-            onClick={() => router.back()}
-            sx={{ 
-              p: 1,
-              '&:hover': {
-                backgroundColor: 'grey.100'
-              }
-            }}
-          >
-            <ArrowBackIcon />
-          </IconButton>
-        )}
+        <Paper
+          elevation={0}
+          sx={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 80,
+            height: 80,
+            borderRadius: '50%',
+            bgcolor: 'rgba(255, 255, 255, 0.9)',
+            mb: 3,
+            backdropFilter: 'blur(10px)'
+          }}
+        >
+          <PetsIcon sx={{ fontSize: 40, color: '#667eea' }} />
+        </Paper>
         
-        <Box sx={{ flex: 1 }}>
+        <Typography 
+          variant="h3" 
+          fontWeight="700"
+          sx={{ 
+            fontSize: { xs: '2rem', sm: '2.5rem', md: '3rem' },
+            letterSpacing: '-0.02em',
+            color: 'white',
+            mb: 2,
+            textShadow: '0 2px 4px rgba(0,0,0,0.1)'
+          }}
+        >
+          {title}
+        </Typography>
+        
+        {subtitle && (
           <Typography 
-            variant="h5" 
-            fontWeight="700"
+            variant="h6" 
             sx={{ 
-              fontSize: { xs: '1.25rem', sm: '1.5rem' },
-              letterSpacing: '-0.02em',
-              color: 'grey.900'
+              color: 'rgba(255, 255, 255, 0.95)',
+              fontSize: { xs: '0.95rem', sm: '1.1rem' },
+              fontWeight: 400,
+              maxWidth: 600,
+              mx: 'auto',
+              lineHeight: 1.6
             }}
           >
-            {title}
+            {subtitle}
           </Typography>
-          {subtitle && (
-            <Typography 
-              variant="body2" 
-              sx={{ 
-                mt: 0.5,
-                color: 'text.secondary',
-                fontSize: '0.875rem'
-              }}
-            >
-              {subtitle}
-            </Typography>
-          )}
-        </Box>
+        )}
       </Box>
     </Box>
   );

@@ -33,12 +33,10 @@ import {
   LocationOn as LocationIcon,
   PhotoCamera as PhotoCameraIcon,
   Pets as PetsIcon,
-  Phone as PhoneIcon,
   Send as SendIcon,
   MyLocation as MyLocationIcon,
   CalendarToday as CalendarIcon,
   AccessTime as AccessTimeIcon,
-  Email as EmailIcon,
   Home as HomeIcon,
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
@@ -60,6 +58,7 @@ import FormHeader from '@/components/FormHeader';
 import { db, storage } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { useAuth } from '@/lib/auth/auth-context';
 
 interface FoundPetData {
   // 見つけたペットの情報
@@ -79,9 +78,7 @@ interface FoundPetData {
   petCondition: string; // ペットの状態
   
   // 発見者の情報
-  finderName: string;
-  finderPhone: string;
-  finderEmail: string;
+  finderNickname: string;
   canKeepTemporarily: boolean; // 一時的に保護できるか
   keepUntilDate: string; // いつまで保護できるか
   
@@ -102,9 +99,7 @@ const initialFormData: FoundPetData = {
   foundLocationDetails: '',
   currentLocation: '',
   petCondition: '',
-  finderName: '',
-  finderPhone: '',
-  finderEmail: '',
+  finderNickname: '',
   canKeepTemporarily: false,
   keepUntilDate: '',
   additionalInfo: ''
@@ -132,6 +127,7 @@ function FoundPetContent() {
   const [images, setImages] = useState<File[]>([]);
   const [imagePreviewUrls, setImagePreviewUrls] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   const [error, setError] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Partial<Record<keyof FoundPetData, boolean>>>({});
   const [success, setSuccess] = useState(false);
@@ -237,19 +233,9 @@ function FoundPetContent() {
       errors.foundAddress = true;
       hasError = true;
     }
-    if (!formData.finderEmail) {
-      errors.finderEmail = true;
+    if (!formData.finderNickname) {
+      errors.finderNickname = true;
       hasError = true;
-    } else {
-      // メールアドレスの形式チェック
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(formData.finderEmail)) {
-        errors.finderEmail = true;
-        hasError = true;
-        setError('正しいメールアドレスを入力してください');
-        setFieldErrors(errors);
-        return false;
-      }
     }
     if (formData.canKeepTemporarily && !formData.keepUntilDate) {
       errors.keepUntilDate = true;
@@ -257,7 +243,7 @@ function FoundPetContent() {
     }
     
     if (hasError) {
-      setError('必須項目を入力してください');
+      setError('ペットの種類、発見場所、ニックネームは必須です');
       setFieldErrors(errors);
       return false;
     }
@@ -291,6 +277,8 @@ function FoundPetContent() {
       // Firestoreにデータを保存
       const docRef = await addDoc(collection(db, 'foundPets'), {
         ...formData,
+        finderNickname: formData.finderNickname, // ニックネームを保存
+        userId: user?.uid, // ユーザーIDを保存
         imageUrls,
         status: 'found', // found, matched, resolved
         createdAt: serverTimestamp(),
@@ -298,12 +286,37 @@ function FoundPetContent() {
       });
       
       console.log('Document written with ID: ', docRef.id);
+      
+      // Visual Detective Agentによる自動マッチングを実行
+      try {
+        console.log('Starting AI auto-matching...');
+        const matchResponse = await fetch('/api/auto-match', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            foundPetId: docRef.id,
+          }),
+        });
+        
+        if (matchResponse.ok) {
+          const matchData = await matchResponse.json();
+          console.log(`AI matching completed. Found ${matchData.matchesFound} potential matches`);
+        } else {
+          console.warn('Auto-matching failed, but pet was successfully registered');
+        }
+      } catch (matchError) {
+        console.error('Auto-matching error:', matchError);
+        // マッチングに失敗してもペット登録は成功として扱う
+      }
+      
       setSuccess(true);
       
-      // 3秒後にホームページへリダイレクト
+      // 5秒後にホームページへリダイレクト（マッチング結果を確認する時間を与える）
       setTimeout(() => {
         router.push('/');
-      }, 3000);
+      }, 5000);
       
     } catch (error: any) {
       console.error('Error adding document: ', error);
@@ -315,7 +328,9 @@ function FoundPetContent() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
-      <Sidebar />
+      <Box sx={{ width: 240 }}>
+        <Sidebar />
+      </Box>
       
       <Box sx={{ 
         flex: 1, 
@@ -343,7 +358,8 @@ function FoundPetContent() {
                 報告ありがとうございます！
               </Typography>
               <Typography variant="body2">
-                AIエージェントが飼い主さんの捜索を開始しました。3秒後にダッシュボードへ移動します...
+                Visual Detective AIが画像を解析し、迷子ペットとのマッチングを実行中です。<br />
+                5秒後にダッシュボードでマッチング結果をご確認いただけます...
               </Typography>
             </Alert>
           )}
@@ -646,59 +662,35 @@ function FoundPetContent() {
             </CardContent>
           </Card>
 
-          {/* 4. 連絡先 */}
+          {/* 4. ニックネーム */}
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', mb: 3 }}>
             <CardContent sx={{ p: 3 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <PhoneIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <PetsIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
                 <Typography variant="h6" fontWeight="600">
-                  連絡先情報
+                  ニックネーム登録
                 </Typography>
               </Box>
 
+              <Alert severity="info" sx={{ mb: 3 }}>
+                チャットで飼い主さんとやり取りする際に使用するニックネームを設定してください。
+              </Alert>
+
               <Grid container spacing={2}>
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="お名前"
-                    value={formData.finderName}
-                    onChange={handleInputChange('finderName')}
-                    helperText="任意：ニックネームでも可"
-                  />
-                </Grid>
-
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="電話番号"
-                    value={formData.finderPhone}
-                    onChange={handleInputChange('finderPhone')}
-                    placeholder="090-1234-5678"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <PhoneIcon fontSize="small" color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                  />
-                </Grid>
-
                 <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    type="email"
-                    label="メールアドレス"
-                    value={formData.finderEmail}
-                    onChange={handleInputChange('finderEmail')}
-                    error={fieldErrors.finderEmail}
-                    placeholder="example@email.com"
+                    label="ニックネーム"
+                    value={formData.finderNickname}
+                    onChange={handleInputChange('finderNickname')}
+                    error={fieldErrors.finderNickname}
+                    placeholder="例: ペット発見者"
                     required
-                    helperText={fieldErrors.finderEmail ? '有効なメールアドレスを入力してください' : '飼い主さんからの連絡先'}
+                    helperText="チャットで表示される名前です"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <EmailIcon fontSize="small" color="action" />
+                          <PetsIcon fontSize="small" color="action" />
                         </InputAdornment>
                       ),
                     }}
@@ -795,7 +787,6 @@ function FoundPetContent() {
     </Box>
   );
 }
-
 
 function FoundPetPageWrapper() {
   const [isClient, setIsClient] = useState(false);

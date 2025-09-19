@@ -8,7 +8,8 @@ import {
   LinearProgress, 
   Stack,
   CircularProgress,
-  Grid
+  Grid,
+  Button
 } from '@mui/material';
 import { 
   SmartToy as SmartToyIcon,
@@ -17,6 +18,7 @@ import {
   ManageSearch as ManageSearchIcon 
 } from '@mui/icons-material';
 import { keyframes } from '@mui/system';
+import { useState, useEffect } from 'react';
 
 const pulse = keyframes`
   0% { 
@@ -40,54 +42,157 @@ const rotate = keyframes`
 `;
 
 interface AgentData {
+  id: string;
   name: string;
-  status: 'active' | 'processing' | 'idle';
+  status: 'idle' | 'processing' | 'error';
   progress: number;
   description: string;
-  icon: React.ReactNode;
-  color: string;
+  lastActivity: string;
+  color: 'success' | 'warning' | 'error';
+  icon: string;
+}
+
+interface AgentStatusResponse {
+  success: boolean;
+  agents: AgentData[];
+  totalProcessed: number;
+  activeAgents: number;
+  overallProgress: number;
 }
 
 export default function AgentStatus() {
-  const agents: AgentData[] = [
-    {
-      name: '画像解析',
-      status: 'active',
-      progress: 75,
-      description: 'オークパーク周辺で発見',
-      icon: <ImageSearchIcon />,
-      color: 'success'
-    },
-    {
-      name: '行動予測',
-      status: 'processing',
-      progress: 40,
-      description: '移動パターン分析中',
-      icon: <PsychologyIcon />,
-      color: 'warning'
-    },
-    {
-      name: '捜索統括',
-      status: 'active',
-      progress: 90,
-      description: 'エリア3にドローン配備',
-      icon: <ManageSearchIcon />,
-      color: 'success'
+  const [agentData, setAgentData] = useState<AgentStatusResponse>({
+    success: false,
+    agents: [],
+    totalProcessed: 0,
+    activeAgents: 0,
+    overallProgress: 0
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const fetchAgentStatus = async () => {
+    try {
+      const response = await fetch('/api/agents/status');
+      const data: AgentStatusResponse = await response.json();
+      
+      if (data.success) {
+        setAgentData(data);
+      }
+    } catch (error) {
+      console.error('Failed to fetch agent status:', error);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
+
+  useEffect(() => {
+    // 初回読み込み
+    fetchAgentStatus();
+    
+    // 5秒ごとに状態を更新
+    const interval = setInterval(fetchAgentStatus, 5000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  const getIconComponent = (iconName: string) => {
+    switch (iconName) {
+      case 'ImageSearch':
+        return <ImageSearchIcon />;
+      case 'Psychology':
+        return <PsychologyIcon />;
+      case 'ManageSearch':
+        return <ManageSearchIcon />;
+      default:
+        return <SmartToyIcon />;
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case 'idle':
+        return '待機中';
+      case 'processing':
+        return '処理中';
+      case 'error':
+        return 'エラー';
+      default:
+        return '不明';
+    }
+  };
+
+  const testAgentStatus = async (status: 'idle' | 'processing' | 'error') => {
+    try {
+      let action = null;
+      if (status === 'processing') {
+        action = 'analysis_started';
+      } else if (status === 'idle') {
+        action = 'image_analysis_completed';
+      }
+
+      await fetch('/api/agents/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ agentId: 'visual-detective', status, action })
+      });
+      // 状態を強制更新
+      fetchAgentStatus();
+    } catch (error) {
+      console.error('Failed to update agent status:', error);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <Box sx={{ p: 3, width: '100%', height: '100%', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Box sx={{ p: 3, width: '100%', height: '100%' }}>
-      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', gap: 1 }}>
-        <SmartToyIcon color="primary" />
-        <Typography variant="h5" fontWeight="bold">
-          AIエージェント状態
-        </Typography>
+      <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <SmartToyIcon color="primary" />
+          <Typography variant="h5" fontWeight="bold">
+            AIエージェント状態
+          </Typography>
+        </Box>
+        
+        {/* テスト用ボタン */}
+        <Box sx={{ display: 'flex', gap: 1 }}>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => testAgentStatus('idle')}
+            sx={{ fontSize: '0.7rem' }}
+          >
+            待機
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            onClick={() => testAgentStatus('processing')}
+            sx={{ fontSize: '0.7rem' }}
+          >
+            処理中
+          </Button>
+          <Button
+            size="small"
+            variant="outlined"
+            color="error"
+            onClick={() => testAgentStatus('error')}
+            sx={{ fontSize: '0.7rem' }}
+          >
+            エラー
+          </Button>
+        </Box>
       </Box>
 
       <Grid container spacing={2}>
-        {agents.map((agent, index) => (
-          <Grid item xs={12} sm={6} md={4} key={index}>
+        {agentData.agents.map((agent, index) => (
+          <Grid item xs={12} sm={6} md={4} key={agent.id}>
             <Paper
               elevation={0}
               sx={{
@@ -121,7 +226,10 @@ export default function AgentStatus() {
                       color: agent.status === 'idle' ? 'grey.400' : `${agent.color}.main`,
                       '& .MuiCircularProgress-circle': {
                         strokeLinecap: 'round',
-                      }
+                      },
+                      ...(agent.status === 'processing' && {
+                        animation: `${pulse} 2s infinite`
+                      })
                     }}
                   />
                   <Box
@@ -139,7 +247,7 @@ export default function AgentStatus() {
                     <Box sx={{ 
                       color: agent.status === 'idle' ? 'grey.500' : `${agent.color}.700`
                     }}>
-                      {agent.icon}
+                      {getIconComponent(agent.icon)}
                     </Box>
                   </Box>
                 </Box>
@@ -158,11 +266,7 @@ export default function AgentStatus() {
               {/* ステータスチップ */}
               <Box sx={{ display: 'flex', justifyContent: 'center', mb: 1 }}>
                 <Chip
-                  label={
-                    agent.status === 'active' ? '動作中' : 
-                    agent.status === 'processing' ? '処理中' : 
-                    '待機中'
-                  }
+                  label={getStatusLabel(agent.status)}
                   size="small"
                   sx={{
                     backgroundColor: agent.status === 'idle' ? 'grey.200' : `${agent.color}.100`,
@@ -217,7 +321,7 @@ export default function AgentStatus() {
           <Grid item xs={4}>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h6" fontWeight="bold" color="primary.700">
-                15
+                {agentData.totalProcessed}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 解析済み画像
@@ -227,7 +331,7 @@ export default function AgentStatus() {
           <Grid item xs={4}>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h6" fontWeight="bold" color="primary.700">
-                3
+                {agentData.activeAgents}
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 アクティブエージェント
@@ -237,7 +341,7 @@ export default function AgentStatus() {
           <Grid item xs={4}>
             <Box sx={{ textAlign: 'center' }}>
               <Typography variant="h6" fontWeight="bold" color="primary.700">
-                87%
+                {agentData.overallProgress}%
               </Typography>
               <Typography variant="caption" color="text.secondary">
                 総合進捗率

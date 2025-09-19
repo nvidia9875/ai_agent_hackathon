@@ -1,176 +1,248 @@
-/**
- * Vision AI API Client
- * Google Cloud Vision AIとの通信を管理
- */
-
-// @google-cloud/visionのインポートが必要
-// import { ImageAnnotatorClient } from '@google-cloud/vision';
+import vision from '@google-cloud/vision';
+import { VisualAnalysisResult } from '@/types/agents';
 
 export class VisionAIClient {
-  private apiKey: string;
-  private endpoint: string;
-  // private client: ImageAnnotatorClient;
+  private client: vision.ImageAnnotatorClient;
 
   constructor() {
-    // TODO: 環境変数から設定を読み込み
-    // 実装手順:
-    // 1. process.env.GOOGLE_APPLICATION_CREDENTIALS を確認
-    // 2. this.client = new ImageAnnotatorClient() で初期化
-    // 3. エンドポイントのoverrideが必要な場合は設定
-    this.apiKey = process.env.GOOGLE_CLOUD_API_KEY || '';
-    this.endpoint = process.env.VISION_AI_ENDPOINT || 'https://vision.googleapis.com/v1';
+    try {
+      this.client = new vision.ImageAnnotatorClient({
+        keyFilename: process.env.GOOGLE_APPLICATION_CREDENTIALS,
+        timeout: 30000, // 30秒タイムアウト
+      });
+      console.log('Vision AI client initialized successfully');
+    } catch (error) {
+      console.error('Failed to initialize Vision AI client:', error);
+      throw error;
+    }
   }
 
-  /**
-   * 画像からラベルを検出
-   */
-  async detectLabels(imageUrl: string): Promise<string[]> {
-    // TODO: Vision AI APIのラベル検出実装
-    // 実装手順:
-    // 1. リクエストオブジェクトの作成
-    //    const request = {
-    //      image: { source: { imageUri: imageUrl } },
-    //      features: [{ type: 'LABEL_DETECTION', maxResults: 10 }]
-    //    };
-    // 2. this.client.annotateImage(request) を呼び出し
-    // 3. レスポンスからラベルを抽出
-    //    response[0].labelAnnotations.map(label => label.description)
-    // 4. 信頼度0.7以上のラベルのみフィルタリング
-    // エラーハンドリング: APIエラー時は空配列を返す
+  async analyzeImage(imageBuffer: Buffer): Promise<VisualAnalysisResult> {
+    try {
+      console.log('Starting Vision AI analysis...');
+      
+      // Vision AI APIで画像解析（タイムアウト付き）
+      const analysisPromise = this.client.annotateImage({
+        image: {
+          content: imageBuffer.toString('base64'),
+        },
+        features: [
+          { type: 'LABEL_DETECTION', maxResults: 10 },
+          { type: 'IMAGE_PROPERTIES', maxResults: 5 },
+          { type: 'OBJECT_LOCALIZATION', maxResults: 5 },
+        ],
+      });
+
+      // 20秒でタイムアウト
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Vision AI timeout')), 20000);
+      });
+
+      const [result] = await Promise.race([analysisPromise, timeoutPromise]) as any;
+      console.log('Vision AI analysis completed successfully');
+
+      // ペットタイプの判定
+      const labels = result.labelAnnotations || [];
+      const petType = this.detectPetType(labels);
+      const breed = this.detectBreed(labels, petType);
+
+      // 色情報の抽出
+      const colors = this.extractColors(result.imagePropertiesAnnotation);
+
+      // サイズの推定
+      const size = this.estimateSize(result.localizedObjectAnnotations);
+
+      // 画像品質の評価
+      const imageQuality = this.assessImageQuality(result);
+
+      // 特徴ベクトル生成（仮実装）
+      const features = await this.generateFeatureVector(imageBuffer);
+
+      return {
+        petType,
+        breed,
+        color: colors,
+        size,
+        confidence: this.calculateConfidence(result),
+        features,
+        imageQuality,
+        description: this.generateDescription(petType, breed, colors, size),
+      };
+    } catch (error) {
+      console.error('Vision AI analysis error:', error);
+      
+      // フォールバック：基本的な解析結果を返す
+      console.log('Using fallback analysis...');
+      return this.getFallbackAnalysis();
+    }
+  }
+
+  private getFallbackAnalysis(): VisualAnalysisResult {
+    console.log('Using fallback analysis due to Vision API failure');
+    return {
+      petType: 'other', // 不明として処理
+      breed: undefined,
+      color: ['unknown'],
+      size: 'medium',
+      confidence: 0.1, // 非常に低い信頼度
+      features: new Array(1024).fill(0.001), // ダミー特徴量
+      imageQuality: 0,
+      description: 'Vision API unavailable - fallback analysis',
+    };
+  }
+
+  private detectPetType(labels: any[]): 'dog' | 'cat' | 'other' {
+    const dogScore = labels.find(l => l.description.toLowerCase().includes('dog'))?.score || 0;
+    const catScore = labels.find(l => l.description.toLowerCase().includes('cat'))?.score || 0;
     
-    throw new Error('Not implemented');
+    if (dogScore > 0.7) return 'dog';
+    if (catScore > 0.7) return 'cat';
+    return 'other';
   }
 
-  /**
-   * 画像から物体を検出
-   */
-  async detectObjects(imageUrl: string): Promise<any[]> {
-    // TODO: 物体検出の実装
-    // 実装手順:
-    // 1. リクエストオブジェクトの作成
-    //    const request = {
-    //      image: { source: { imageUri: imageUrl } },
-    //      features: [{ type: 'OBJECT_LOCALIZATION', maxResults: 20 }]
-    //    };
-    // 2. this.client.annotateImage(request) を呼び出し
-    // 3. レスポンスをパース
-    //    response[0].localizedObjectAnnotations.map(obj => ({
-    //      name: obj.name,
-    //      score: obj.score,
-    //      boundingBox: {
-    //        x: obj.boundingPoly.normalizedVertices[0].x,
-    //        y: obj.boundingPoly.normalizedVertices[0].y,
-    //        width: 右下座標 - 左上座標,
-    //        height: 右下座標 - 左上座標
-    //      }
-    //    }))
-    // 4. ペット関連オブジェクト（"Animal", "Dog", "Cat"）を優先
-    // エラーハンドリング: APIエラー時は空配列を返す
+  private detectBreed(labels: any[], petType: string): string | undefined {
+    if (petType === 'dog') {
+      const dogBreeds = ['labrador', 'golden retriever', 'bulldog', 'poodle', 'beagle'];
+      for (const breed of dogBreeds) {
+        const match = labels.find(l => l.description.toLowerCase().includes(breed));
+        if (match) return match.description;
+      }
+    } else if (petType === 'cat') {
+      const catBreeds = ['persian', 'siamese', 'maine coon', 'british shorthair'];
+      for (const breed of catBreeds) {
+        const match = labels.find(l => l.description.toLowerCase().includes(breed));
+        if (match) return match.description;
+      }
+    }
+    return undefined;
+  }
+
+  private extractColors(imageProperties: any): string[] {
+    if (!imageProperties?.dominantColors?.colors) return [];
     
-    throw new Error('Not implemented');
+    return imageProperties.dominantColors.colors
+      .slice(0, 3)
+      .map((color: any) => {
+        const r = color.color.red || 0;
+        const g = color.color.green || 0;
+        const b = color.color.blue || 0;
+        return this.rgbToColorName(r, g, b);
+      });
   }
 
-  /**
-   * 画像の品質を評価
-   */
-  async assessImageQuality(imageUrl: string): Promise<{
-    blur: number;
-    brightness: number;
-    contrast: number;
-    noise: number;
-  }> {
-    // TODO: 画像品質評価の実装
-    // 実装手順:
-    // 1. Vision AIのImage Properties機能を使用
-    //    const request = {
-    //      image: { source: { imageUri: imageUrl } },
-    //      features: [{ type: 'IMAGE_PROPERTIES' }]
-    //    };
-    // 2. レスポンスから品質指標を計算
-    //    const props = response[0].imagePropertiesAnnotation;
-    // 3. 各指標の計算:
-    //    - blur: ラプラシアン分散を使用（低いほどぼやけている）
-    //    - brightness: dominantColorsの平均RGB値 / 255
-    //    - contrast: RGB値の標準偏差 / 128
-    //    - noise: エッジ検出で高周波成分を分析
-    // 4. 各値を0-1に正規化
-    // エラーハンドリング: 分析失敗時はデフォルト値(0.5)を返す
-    
-    throw new Error('Not implemented');
-  }
-
-  /**
-   * ペットの種類を判定
-   */
-  async detectPetType(imageUrl: string): Promise<'dog' | 'cat' | 'other'> {
-    // TODO: ペット種別判定の実装
-    // 実装手順:
-    // 1. detectLabels()を呼び出してラベル取得
-    //    const labels = await this.detectLabels(imageUrl);
-    // 2. ラベルを分析
-    //    - 犬関連: "dog", "puppy", "canine", 犬種名
-    //    - 猫関連: "cat", "kitten", "feline", 猫種名
-    // 3. スコア計算
-    //    - 関連ラベルが3つ以上: 高信頼度
-    //    - 関連ラベルが1-2つ: 中信頼度
-    //    - 関連ラベルが0つ: 'other'
-    // 4. 犬と猫両方のラベルがある場合
-    //    - より多くのラベルがある方を選択
-    //    - 同数の場合は'other'
-    // エラーハンドリング: APIエラー時は'other'を返す
-    
-    throw new Error('Not implemented');
-  }
-
-  /**
-   * 画像から色情報を抽出
-   */
-  async extractColors(imageUrl: string): Promise<{
-    dominantColors: string[];
-    colorDistribution: Record<string, number>;
-  }> {
-    // TODO: 色抽出の実装
-    // 実装手順:
-    // 1. Image Properties APIを使用
-    //    const request = {
-    //      image: { source: { imageUri: imageUrl } },
-    //      features: [{ type: 'IMAGE_PROPERTIES' }]
-    //    };
-    // 2. dominantColorsを抽出
-    //    const colors = response[0].imagePropertiesAnnotation.dominantColors.colors;
-    // 3. RGBを色名に変換
-    //    - 色空間で最も近い名前付き色を探す
-    //    - 例: {r:139, g:69, b:19} → "brown"
-    //    - 主要な色: white, black, brown, gray, orange, yellow, cream
-    // 4. colorDistributionを計算
-    //    - 各色のpixelFractionをパーセンテージに変換
-    //    - colorDistribution[colorName] = pixelFraction * 100
-    // 5. dominantColorsを上位5色に絞る
-    // エラーハンドリング: APIエラー時はデフォルト値を返す
-    
-    throw new Error('Not implemented');
-  }
-
-  /**
-   * RGB値を色名に変換するヘルパー関数
-   */
   private rgbToColorName(r: number, g: number, b: number): string {
-    // TODO: RGBから色名への変換ロジック
-    // 実装手順:
-    // 1. ペットによくある色のマッピングテーブルを作成
-    //    const colorMap = {
-    //      white: {r: 255, g: 255, b: 255},
-    //      black: {r: 0, g: 0, b: 0},
-    //      brown: {r: 139, g: 69, b: 19},
-    //      gray: {r: 128, g: 128, b: 128},
-    //      orange: {r: 255, g: 165, b: 0},
-    //      yellow: {r: 255, g: 255, b: 0},
-    //      cream: {r: 255, g: 253, b: 208}
-    //    };
-    // 2. 各色とのユークリッド距離を計算
-    //    distance = sqrt((r1-r2)^2 + (g1-g2)^2 + (b1-b2)^2)
-    // 3. 最小距離の色名を返す
-    // 4. 距離が大きすぎる場合（>100）は"mixed"を返す
-    return 'unknown';
+    // 簡略化されたカラー判定
+    if (r > 200 && g > 200 && b > 200) return 'white';
+    if (r < 50 && g < 50 && b < 50) return 'black';
+    if (r > 150 && g < 100 && b < 100) return 'brown';
+    if (r > 200 && g > 150 && b < 100) return 'golden';
+    if (r < 100 && g < 100 && b < 100) return 'gray';
+    return 'mixed';
+  }
+
+  private estimateSize(objects: any[]): 'small' | 'medium' | 'large' {
+    if (!objects || objects.length === 0) return 'medium';
+    
+    const petObject = objects.find(o => 
+      o.name.toLowerCase().includes('dog') || 
+      o.name.toLowerCase().includes('cat')
+    );
+    
+    if (!petObject) return 'medium';
+    
+    const bbox = petObject.boundingPoly?.normalizedVertices;
+    if (!bbox || bbox.length < 4) return 'medium';
+    
+    const width = Math.abs(bbox[1].x - bbox[0].x);
+    const height = Math.abs(bbox[2].y - bbox[0].y);
+    const area = width * height;
+    
+    if (area < 0.2) return 'small';
+    if (area > 0.5) return 'large';
+    return 'medium';
+  }
+
+  private assessImageQuality(result: any): number {
+    // 画像品質スコア（0-100）
+    let score = 50;
+    
+    // ラベル検出の信頼度
+    if (result.labelAnnotations && result.labelAnnotations.length > 0) {
+      const avgConfidence = result.labelAnnotations
+        .slice(0, 5)
+        .reduce((sum: number, l: any) => sum + l.score, 0) / 5;
+      score += avgConfidence * 30;
+    }
+    
+    // オブジェクト検出の品質
+    if (result.localizedObjectAnnotations && result.localizedObjectAnnotations.length > 0) {
+      score += 20;
+    }
+    
+    return Math.min(100, score);
+  }
+
+  private async generateFeatureVector(imageBuffer: Buffer): Promise<number[]> {
+    // 画像のハッシュベースの疑似特徴ベクトル生成
+    // 実際のプロダクションではVertex AIのEmbedding APIやカスタムモデルを使用すべき
+    
+    const crypto = require('crypto');
+    
+    // 画像データからハッシュを生成
+    const hash = crypto.createHash('sha256').update(imageBuffer).digest();
+    
+    // ハッシュから決定論的な特徴ベクトルを生成（128次元）
+    const features: number[] = [];
+    const dimension = 128; // 次元数を減らして計算を高速化
+    
+    for (let i = 0; i < dimension; i++) {
+      // ハッシュの各バイトから特徴値を生成
+      const byteIndex = i % hash.length;
+      const byte = hash[byteIndex];
+      
+      // 複数のバイトを組み合わせて変動を作る
+      const nextByte = hash[(byteIndex + 1) % hash.length];
+      const prevByte = hash[(byteIndex - 1 + hash.length) % hash.length];
+      
+      // -1 から 1 の範囲の値を生成
+      const value = ((byte + nextByte * 0.5 + prevByte * 0.3) % 256) / 128 - 1;
+      
+      // ノイズを少し加えて完全一致を避ける（同じ画像でも若干の違いを持たせる）
+      const noise = (Math.sin(i * byte) * 0.05); // ±0.05の範囲のノイズ
+      features.push(value + noise);
+    }
+    
+    // L2正規化
+    const norm = Math.sqrt(features.reduce((sum, val) => sum + val * val, 0));
+    if (norm > 0) {
+      return features.map(val => val / norm);
+    }
+    
+    // ノルムが0の場合のフォールバック
+    return features.map(() => 0.01);
+  }
+
+  private calculateConfidence(result: any): number {
+    const hasLabels = result.labelAnnotations && result.labelAnnotations.length > 0;
+    const hasObjects = result.localizedObjectAnnotations && result.localizedObjectAnnotations.length > 0;
+    const hasColors = result.imagePropertiesAnnotation?.dominantColors?.colors?.length > 0;
+    
+    let confidence = 0;
+    if (hasLabels) confidence += 0.4;
+    if (hasObjects) confidence += 0.4;
+    if (hasColors) confidence += 0.2;
+    
+    return confidence;
+  }
+
+  private generateDescription(
+    petType: string,
+    breed: string | undefined,
+    colors: string[],
+    size: string
+  ): string {
+    const breedStr = breed ? `${breed} ` : '';
+    const colorStr = colors.length > 0 ? colors.join('/') : 'unknown color';
+    return `${size} ${colorStr} ${breedStr}${petType}`;
   }
 }

@@ -36,15 +36,14 @@ import {
   Close as CloseIcon,
   Pets as PetsIcon,
   LocationOn as LocationIcon,
-  Phone as PhoneIcon,
-  Email as EmailIcon,
   CalendarToday as CalendarIcon,
   AccessTime as AccessTimeIcon,
   PhotoCamera as PhotoCameraIcon,
   Info as InfoIcon,
   CheckCircle as CheckCircleIcon,
   NavigateNext as NavigateNextIcon,
-  NavigateBefore as NavigateBeforeIcon
+  NavigateBefore as NavigateBeforeIcon,
+  Send as SendIcon
 } from '@mui/icons-material';
 import Sidebar from '@/components/Sidebar';
 import FormHeader from '@/components/FormHeader';
@@ -65,6 +64,8 @@ interface PetData {
   color: string;
   features: string;
   microchipNumber: string;
+  hasCollar: boolean;
+  collarColor: string;
   
   // 最後に見た情報
   lastSeenDate: string;
@@ -75,9 +76,7 @@ interface PetData {
   additionalInfo: string;
   
   // 飼い主情報
-  ownerName: string;
-  ownerPhone: string;
-  ownerEmail: string;
+  ownerNickname: string;
 }
 
 const initialFormData: PetData = {
@@ -90,15 +89,15 @@ const initialFormData: PetData = {
   color: '',
   features: '',
   microchipNumber: '',
+  hasCollar: false,
+  collarColor: '',
   lastSeenDate: '',
   lastSeenTime: '',
   lastSeenAddress: '',
   lastSeenDetails: '',
   lostReason: '',
   additionalInfo: '',
-  ownerName: '',
-  ownerPhone: '',
-  ownerEmail: ''
+  ownerNickname: ''
 };
 
 const petTypes = ['犬', '猫', '鳥', 'うさぎ', 'その他'];
@@ -123,7 +122,7 @@ const lostReasons = [
 const years = Array.from({ length: 21 }, (_, i) => i.toString()); // 0-20年
 const months = Array.from({ length: 12 }, (_, i) => i.toString()); // 0-11ヶ月
 
-const steps = ['ペット情報', '写真', '最後の目撃情報', '飼い主情報'];
+const steps = ['ペット情報', '写真', '最後の目撃情報', 'ニックネーム登録'];
 
 function UploadPetContent() {
   const [activeStep, setActiveStep] = useState(0);
@@ -214,17 +213,13 @@ function UploadPetContent() {
           return false;
         }
         break;
-      case 3: // 飼い主情報
-        if (!formData.ownerName) {
-          errors.ownerName = true;
-          hasError = true;
-        }
-        if (!formData.ownerPhone) {
-          errors.ownerPhone = true;
+      case 3: // ニックネーム
+        if (!formData.ownerNickname) {
+          errors.ownerNickname = true;
           hasError = true;
         }
         if (hasError) {
-          setError('飼い主の名前と電話番号は必須です');
+          setError('ニックネームは必須です');
           setFieldErrors(errors);
           return false;
         }
@@ -268,23 +263,61 @@ function UploadPetContent() {
       }
       
       // Firestoreにデータを保存
-      const docRef = await addDoc(collection(db, 'lostPets'), {
+      const docRef = await addDoc(collection(db, 'pets'), {
         ...formData,
-        imageUrls,
+        images: imageUrls, // imageUrlsをimagesに変更してPetMatcherと互換性を保つ
+        name: formData.petName, // petNameをnameに変更
+        type: formData.petType, // petTypeをtypeに変更
+        colors: formData.color ? [formData.color] : [], // colorを配列形式に変換
+        specialFeatures: formData.features, // featuresをspecialFeaturesに変更
+        hasCollar: formData.hasCollar, // 首輪の有無を保存
+        collarColor: formData.collarColor, // 首輪の色を保存
+        lastSeen: {
+          date: formData.lastSeenDate,
+          time: formData.lastSeenTime,
+          location: formData.lastSeenAddress,
+          details: formData.lastSeenDetails
+        },
+        ownerNickname: formData.ownerNickname, // ニックネームを保存
         userId: user?.uid,
         userEmail: user?.email,
-        status: 'lost',
+        status: 'missing', // 自動マッチング用のステータス
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       
       console.log('Document written with ID: ', docRef.id);
+      
+      // Visual Detective Agentによる自動マッチングを実行（発見ペットと照合）
+      try {
+        console.log('Starting AI auto-matching for missing pet...');
+        const matchResponse = await fetch('/api/auto-match', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            missingPetId: docRef.id, // 新しく登録した迷子ペットのIDを送信
+          }),
+        });
+        
+        if (matchResponse.ok) {
+          const matchData = await matchResponse.json();
+          console.log(`AI matching completed for missing pet. Found ${matchData.matchesFound} potential matches`);
+        } else {
+          console.warn('Auto-matching failed, but pet was successfully registered');
+        }
+      } catch (matchError) {
+        console.error('Auto-matching error:', matchError);
+        // マッチングに失敗してもペット登録は成功として扱う
+      }
+      
       setSuccess(true);
       
-      // 3秒後にホームページへリダイレクト
+      // 5秒後にホームページへリダイレクト（マッチング結果を確認する時間を与える）
       setTimeout(() => {
         router.push('/');
-      }, 3000);
+      }, 5000);
       
     } catch (error: any) {
       console.error('Error adding document: ', error);
@@ -439,6 +472,40 @@ function UploadPetContent() {
                 </Grid>
                 
                 <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
+                    <Chip label="首輪の情報" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <FormControlLabel
+                    control={
+                      <Checkbox
+                        checked={formData.hasCollar}
+                        onChange={(e) => setFormData(prev => ({
+                          ...prev,
+                          hasCollar: e.target.checked,
+                          collarColor: e.target.checked ? prev.collarColor : ''
+                        }))}
+                      />
+                    }
+                    label="首輪をつけている"
+                  />
+                </Grid>
+                
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="首輪の色・特徴"
+                    value={formData.collarColor}
+                    onChange={handleInputChange('collarColor')}
+                    disabled={!formData.hasCollar}
+                    placeholder="例: 赤色の革製、鈴付き"
+                    helperText="首輪の詳細を記入"
+                  />
+                </Grid>
+                
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
                     multiline
@@ -446,7 +513,7 @@ function UploadPetContent() {
                     label="その他の特徴"
                     value={formData.features}
                     onChange={handleInputChange('features')}
-                    placeholder="首輪の色、傷跡、性格など"
+                    placeholder="傷跡、性格、好きな食べ物など"
                     helperText="見つけやすい特徴を詳しく記入してください"
                   />
                 </Grid>
@@ -701,63 +768,34 @@ function UploadPetContent() {
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider' }}>
             <CardContent sx={{ p: 4 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
-                <PhoneIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
+                <PetsIcon sx={{ mr: 2, color: 'primary.main', fontSize: 28 }} />
                 <Typography variant="h5" fontWeight="600">
-                  飼い主情報
+                  ニックネーム登録
                 </Typography>
               </Box>
               
               <Alert severity="info" sx={{ mb: 3 }}>
-                発見者から連絡を受けるための重要な情報です。正確に入力してください。
+                チャットで発見者とやり取りする際に使用するニックネームを設定してください。
               </Alert>
               
               <Grid container spacing={3}>
-                <Grid item xs={12} md={6}>
+                <Grid item xs={12}>
                   <TextField
                     fullWidth
-                    label="お名前"
-                    value={formData.ownerName}
-                    onChange={handleInputChange('ownerName')}
+                    label="ニックネーム"
+                    value={formData.ownerNickname}
+                    onChange={handleInputChange('ownerNickname')}
+                    error={fieldErrors.ownerNickname}
                     required
-                    helperText="フルネームを入力"
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    label="電話番号"
-                    value={formData.ownerPhone}
-                    onChange={handleInputChange('ownerPhone')}
-                    placeholder="090-1234-5678"
+                    placeholder="例: ポチの飼い主"
+                    helperText="チャットで表示される名前です"
                     InputProps={{
                       startAdornment: (
                         <InputAdornment position="start">
-                          <PhoneIcon fontSize="small" color="action" />
+                          <PetsIcon fontSize="small" color="action" />
                         </InputAdornment>
                       ),
                     }}
-                    required
-                    helperText="日中連絡がつく番号"
-                  />
-                </Grid>
-                
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    fullWidth
-                    type="email"
-                    label="メールアドレス"
-                    value={formData.ownerEmail}
-                    onChange={handleInputChange('ownerEmail')}
-                    placeholder="example@email.com"
-                    InputProps={{
-                      startAdornment: (
-                        <InputAdornment position="start">
-                          <EmailIcon fontSize="small" color="action" />
-                        </InputAdornment>
-                      ),
-                    }}
-                    helperText="任意：メールでも連絡を受け取る場合"
                   />
                 </Grid>
               </Grid>
@@ -772,7 +810,9 @@ function UploadPetContent() {
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
-      <Sidebar />
+      <Box sx={{ width: 240 }}>
+        <Sidebar />
+      </Box>
       
       <Box sx={{ flex: 1, overflow: 'auto' }}>
         <FormHeader 
