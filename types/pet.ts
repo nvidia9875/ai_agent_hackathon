@@ -7,8 +7,11 @@ export interface PetInfo {
   age: string;
   size: string;
   colors: string[];
+  personality?: string[];
   specialFeatures: string;
   microchipId?: string;
+  hasCollar?: boolean;
+  collarColor?: string;
   images: string[];
   lastSeen: {
     location: string;
@@ -16,13 +19,22 @@ export interface PetInfo {
     time: string;
     circumstances: string;
   };
+  lastSeenLocation?: { lat: number; lng: number }; // 座標情報（キャッシュ用）
+  homeLocation?: { lat: number; lng: number }; // 自宅の座標
+  foundLocation?: { lat: number; lng: number }; // 発見場所の座標
   contactInfo: {
     name: string;
     phone: string;
     email: string;
     alternativeContact?: string;
+    address?: string; // 自宅住所
   };
   status: 'missing' | 'found' | 'reunited';
+  hasMatch?: boolean; // マッチング有無
+  matchScore?: number; // マッチングスコア
+  matchedPetId?: string; // マッチした発見ペットのID
+  matchDetails?: any; // マッチング詳細情報
+  foundAddress?: string; // 発見場所の住所（マッチング時）
   createdAt: Date;
   updatedAt: Date;
 }

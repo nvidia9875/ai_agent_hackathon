@@ -21,6 +21,7 @@
     "@mui/icons-material": "^6.5.0",
     "@mui/material": "^6.5.0",
     "@mui/x-date-pickers": "^8.11.2",
+    "@react-google-maps/api": "^2.20.7",
     "axios": "^1.12.2",
     "date-fns": "^4.1.0",
     "firebase": "^12.2.1",

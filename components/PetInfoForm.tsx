@@ -21,6 +21,20 @@ const dogBreeds = ['Golden Retriever', 'Labrador', 'German Shepherd', 'Bulldog',
 const catBreeds = ['Persian', 'Siamese', 'Maine Coon', 'British Shorthair', 'Mixed Breed', 'Other'];
 const colors = ['Black', 'White', 'Brown', 'Golden', 'Gray', 'Orange', 'Spotted', 'Mixed'];
 const sizes = ['Small (0-25 lbs)', 'Medium (26-60 lbs)', 'Large (61-100 lbs)', 'Extra Large (100+ lbs)'];
+const personalities = [
+  '人懐っこい',
+  '臆病',
+  '活発',
+  '大人しい',
+  '好奇心旺盛',
+  '警戒心が強い',
+  '独立心が強い',
+  '甘えん坊',
+  '遊び好き',
+  '忠実',
+  '社交的',
+  '内向的'
+];
 
 export default function PetInfoForm() {
   const [formData, setFormData] = useState({
@@ -30,6 +44,7 @@ export default function PetInfoForm() {
     age: '',
     size: '',
     colors: [] as string[],
+    personality: [] as string[],
     specialFeatures: '',
     microchipId: ''
   });
@@ -46,6 +61,14 @@ export default function PetInfoForm() {
     setFormData(prev => ({
       ...prev,
       colors: value
+    }));
+  };
+
+  const handlePersonalityChange = (event: SelectChangeEvent<string[]>) => {
+    const value = event.target.value as string[];
+    setFormData(prev => ({
+      ...prev,
+      personality: value
     }));
   };
 
@@ -171,6 +194,32 @@ export default function PetInfoForm() {
               {colors.map((color) => (
                 <MenuItem key={color} value={color}>
                   {color}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+        </Grid>
+
+        <Grid item xs={12}>
+          <FormControl fullWidth>
+            <InputLabel>性格・特徴</InputLabel>
+            <Select
+              multiple
+              value={formData.personality}
+              onChange={handlePersonalityChange}
+              input={<OutlinedInput label="性格・特徴" />}
+              sx={{ backgroundColor: 'grey.50' }}
+              renderValue={(selected) => (
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                  {(selected as string[]).map((value) => (
+                    <Chip key={value} label={value} size="small" />
+                  ))}
+                </Box>
+              )}
+            >
+              {personalities.map((personality) => (
+                <MenuItem key={personality} value={personality}>
+                  {personality}
                 </MenuItem>
               ))}
             </Select>

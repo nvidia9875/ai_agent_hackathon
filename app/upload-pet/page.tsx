@@ -62,6 +62,7 @@ interface PetData {
   ageUnknown: boolean;
   size: string;
   color: string;
+  personality: string[];
   features: string;
   microchipNumber: string;
   hasCollar: boolean;
@@ -87,6 +88,7 @@ const initialFormData: PetData = {
   ageUnknown: false,
   size: '',
   color: '',
+  personality: [],
   features: '',
   microchipNumber: '',
   hasCollar: false,
@@ -108,6 +110,20 @@ const petSizes = [
   '50-70cm',
   '70-100cm',
   '100cm以上'
+];
+const personalityOptions = [
+  '人懐っこい',
+  '臆病',
+  '活発',
+  '大人しい',
+  '好奇心旺盛',
+  '警戒心が強い',
+  '独立心が強い',
+  '甘えん坊',
+  '遊び好き',
+  '忠実',
+  '社交的',
+  '内向的'
 ];
 const lostReasons = [
   '散歩中に逃げた',
@@ -203,12 +219,16 @@ function UploadPetContent() {
           errors.lastSeenDate = true;
           hasError = true;
         }
+        if (!formData.lastSeenTime) {
+          errors.lastSeenTime = true;
+          hasError = true;
+        }
         if (!formData.lastSeenAddress) {
           errors.lastSeenAddress = true;
           hasError = true;
         }
         if (hasError) {
-          setError('最後に見た日付と場所は必須です');
+          setError('最後に見た日付、時間、場所はすべて必須です');
           setFieldErrors(errors);
           return false;
         }
@@ -473,6 +493,42 @@ function UploadPetContent() {
                 
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1 }}>
+                    <Chip label="性格・特徴" size="small" />
+                  </Divider>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <FormControl fullWidth>
+                    <InputLabel>性格（複数選択可）</InputLabel>
+                    <Select
+                      multiple
+                      value={formData.personality}
+                      onChange={(e) => setFormData(prev => ({
+                        ...prev,
+                        personality: e.target.value as string[]
+                      }))}
+                      label="性格（複数選択可）"
+                      renderValue={(selected) => (
+                        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                          {(selected as string[]).map((value) => (
+                            <Chip key={value} label={value} size="small" />
+                          ))}
+                        </Box>
+                      )}
+                    >
+                      {personalityOptions.map((personality) => (
+                        <MenuItem key={personality} value={personality}>
+                          <Checkbox checked={formData.personality.includes(personality)} />
+                          {personality}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                    <FormHelperText>ペットの性格を選択してください（行動予測に使用されます）</FormHelperText>
+                  </FormControl>
+                </Grid>
+                
+                <Grid item xs={12}>
+                  <Divider sx={{ my: 1 }}>
                     <Chip label="首輪の情報" size="small" />
                   </Divider>
                 </Grid>
@@ -683,7 +739,9 @@ function UploadPetContent() {
                         </InputAdornment>
                       ),
                     }}
-                    helperText="おおよその時間で構いません"
+                    error={fieldErrors.lastSeenTime}
+                    required
+                    helperText={fieldErrors.lastSeenTime ? '必須項目です' : 'いなくなった時間を選択（行動予測に使用されます）'}
                   />
                 </Grid>
                 

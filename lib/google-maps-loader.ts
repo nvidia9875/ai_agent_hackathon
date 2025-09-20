@@ -52,7 +52,7 @@ export function loadGoogleMaps(): Promise<void> {
 
     // スクリプトタグを作成
     const script = document.createElement('script');
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places&callback=googleMapsCallback`;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places,visualization&callback=googleMapsCallback`;
     script.async = true;
     script.defer = true;
     

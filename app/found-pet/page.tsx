@@ -623,6 +623,9 @@ function FoundPetContent() {
                         </InputAdornment>
                       ),
                     }}
+                    error={fieldErrors.foundDate}
+                    required
+                    helperText={fieldErrors.foundDate ? '必須項目です' : '発見した日付を選択（マッチングに使用されます）'}
                   />
                 </Grid>
 
@@ -641,6 +644,9 @@ function FoundPetContent() {
                         </InputAdornment>
                       ),
                     }}
+                    error={fieldErrors.foundTime}
+                    required
+                    helperText={fieldErrors.foundTime ? '必須項目です' : '発見した時間を選択（マッチングに使用されます）'}
                   />
                 </Grid>
 

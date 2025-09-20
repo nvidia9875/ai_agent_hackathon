@@ -83,10 +83,14 @@ interface MatchResult {
     name: string;
     type: string;
     size: string;
+    color?: string;
     colors: string[];
+    hasCollar?: boolean;
+    collarColor?: string;
     lastSeen: {
       location: string;
       date: string;
+      time?: string;
     };
     contactInfo: {
       name: string;
@@ -969,7 +973,7 @@ export default function PetMatchingCard() {
                         <Grid item xs={4}>
                           <Typography variant="body2" color="text.secondary" gutterBottom>毛色</Typography>
                           <Typography variant="body1" fontWeight="500">
-                            {selectedMatch.missingPet?.color || '不明'}
+                            {selectedMatch.missingPet?.colors?.join(', ') || selectedMatch.missingPet?.color || '不明'}
                           </Typography>
                         </Grid>
                         <Grid item xs={4} sx={{ textAlign: 'center' }}>
@@ -991,6 +995,38 @@ export default function PetMatchingCard() {
                           <Typography variant="body2" color="text.secondary" gutterBottom>毛色</Typography>
                           <Typography variant="body1" fontWeight="500">
                             {selectedMatch.foundPet?.color || '不明'}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+
+                    <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>首輪</Typography>
+                          <Typography variant="body1" fontWeight="500">
+                            {selectedMatch.missingPet?.hasCollar ? 
+                              `あり${selectedMatch.missingPet?.collarColor ? ` (${selectedMatch.missingPet.collarColor})` : ''}` : 
+                              'なし'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4} sx={{ textAlign: 'center' }}>
+                          <Chip 
+                            label={
+                              (selectedMatch.missingPet?.hasCollar === selectedMatch.foundPet?.hasCollar) ? "100%" : "0%"
+                            }
+                            size="small"
+                            color={
+                              (selectedMatch.missingPet?.hasCollar === selectedMatch.foundPet?.hasCollar) ? "success" : "default"
+                            }
+                          />
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>首輪</Typography>
+                          <Typography variant="body1" fontWeight="500">
+                            {selectedMatch.foundPet?.hasCollar ? 
+                              `あり${selectedMatch.foundPet?.collarDescription ? ` (${selectedMatch.foundPet.collarDescription})` : ''}` : 
+                              'なし'}
                           </Typography>
                         </Grid>
                       </Grid>

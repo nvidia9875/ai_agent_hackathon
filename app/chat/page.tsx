@@ -313,11 +313,15 @@ export default function ChatPage() {
   return (
     <Box sx={{ 
       display: 'flex', 
-      height: 'calc(100vh - 64px)', // ヘッダーの高さを考慮
+      height: '100vh',
       bgcolor: '#93AAD4', 
       overflow: 'hidden',
-      position: 'relative',
-      marginTop: '64px' // ヘッダーの高さ分下げる
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      paddingTop: '64px' // ヘッダーの高さ分の余白
     }}>
       <Box sx={{ width: 240 }}>
         <Sidebar />
@@ -528,8 +532,8 @@ export default function ChatPage() {
               bgcolor: '#93AAD4',
               display: 'flex',
               flexDirection: 'column',
-              minHeight: 0, // Flexboxでのスクロール制御に必要
-              position: 'relative'
+              height: 0, // Flexboxでのスクロール制御に必要
+              minHeight: 0
             }}>
               {messages.map((message) => {
                 const isOwn = message.senderId === user?.uid;
@@ -631,10 +635,7 @@ export default function ChatPage() {
                 borderColor: 'divider',
                 display: 'flex',
                 gap: 1,
-                flexShrink: 0,
-                position: 'sticky',
-                bottom: 0,
-                zIndex: 1
+                flexShrink: 0
               }}
             >
               <TextField

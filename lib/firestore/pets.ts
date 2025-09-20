@@ -111,3 +111,59 @@ export async function getAllMissingPets(): Promise<PetInfo[]> {
     throw error;
   }
 }
+
+export async function getMatchedPets(): Promise<PetInfo[]> {
+  try {
+    // マッチング済みのペットを取得
+    const q = query(
+      collection(db, PETS_COLLECTION),
+      where('status', '==', 'missing'),
+      where('hasMatch', '==', true),
+      orderBy('createdAt', 'desc')
+    );
+    
+    const querySnapshot = await getDocs(q);
+    const pets: PetInfo[] = [];
+    
+    for (const docSnap of querySnapshot.docs) {
+      const data = docSnap.data();
+      const pet = { 
+        id: docSnap.id, 
+        ...data,
+        matchScore: data.matchScore || 0,
+        matchedPetId: data.matchedPetId || null,
+        matchDetails: data.matchDetails || null
+      } as PetInfo;
+      
+      // マッチした発見ペットの情報も取得して位置情報を追加
+      if (pet.matchedPetId) {
+        try {
+          const foundPetRef = doc(db, 'foundPets', pet.matchedPetId);
+          const foundPetSnap = await getDoc(foundPetRef);
+          if (foundPetSnap.exists()) {
+            const foundPetData = foundPetSnap.data();
+            // 発見場所の住所を保存
+            pet.foundLocation = foundPetData.foundLocation || null;
+            pet.foundAddress = foundPetData.foundAddress || null;
+          }
+        } catch (err) {
+          console.error('Error fetching matched found pet:', err);
+        }
+      }
+      
+      pets.push(pet);
+    }
+    
+    return pets;
+  } catch (error) {
+    console.error('Error getting matched pets:', error);
+    // フィールドが存在しない場合は全ペットから手動でフィルタ
+    try {
+      const allMissing = await getAllMissingPets();
+      return allMissing.filter(pet => pet.hasMatch === true);
+    } catch (fallbackError) {
+      console.error('Fallback error:', fallbackError);
+      return [];
+    }
+  }
+}
