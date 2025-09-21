@@ -6,6 +6,7 @@ export interface PetInfo {
   breed: string;
   age: string;
   size: string;
+  weight?: number; // 体重（kg）
   colors: string[];
   personality?: string[];
   specialFeatures: string;
@@ -52,6 +53,7 @@ export interface FoundPetInfo {
   id?: string;
   petType: string;
   size: string;
+  weight?: number; // 体重（kg）
   color: string;
   features: string;
   hasCollar: boolean;

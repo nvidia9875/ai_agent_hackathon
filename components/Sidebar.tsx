@@ -16,7 +16,6 @@ import {
   Dashboard as DashboardIcon,
   FileUpload as FileUploadIcon,
   Forum as ForumIcon,
-  Settings as SettingsIcon,
   SmartToy as SmartToyIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
@@ -172,30 +171,6 @@ export default function Sidebar() {
             </ListItemButton>
           </ListItem>
 
-          <ListItem disablePadding sx={{ mb: 0.5 }}>
-            <ListItemButton
-              component={Link}
-              href="/settings"
-              sx={{ 
-                borderRadius: 2,
-                ...(pathname === '/settings' ? {
-                  backgroundColor: 'primary.50',
-                  color: 'primary.main',
-                  '&:hover': { backgroundColor: 'primary.100' }
-                } : {
-                  '&:hover': { backgroundColor: 'grey.100' }
-                })
-              }}
-            >
-              <ListItemIcon>
-                <SettingsIcon sx={{ color: pathname === '/settings' ? 'primary.main' : 'inherit' }} />
-              </ListItemIcon>
-              <ListItemText 
-                primary="設定" 
-                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
-              />
-            </ListItemButton>
-          </ListItem>
         </List>
       </Box>
     </Drawer>

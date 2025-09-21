@@ -4,6 +4,7 @@ import "./globals.css";
 import CustomThemeProvider from "@/components/ThemeProvider";
 import { AuthProvider } from "@/lib/auth/auth-context";
 import { NotificationProvider } from "@/lib/contexts/notification-context";
+import { SuccessNotificationProvider } from "@/lib/contexts/success-notification-context";
 import ClientHeader from "@/components/ClientHeader";
 
 const geistSans = Geist({
@@ -37,10 +38,12 @@ export default function RootLayout({
       >
         <AuthProvider>
           <NotificationProvider>
-            <CustomThemeProvider>
-              <ClientHeader />
-              {children}
-            </CustomThemeProvider>
+            <SuccessNotificationProvider>
+              <CustomThemeProvider>
+                <ClientHeader />
+                {children}
+              </CustomThemeProvider>
+            </SuccessNotificationProvider>
           </NotificationProvider>
         </AuthProvider>
       </body>

@@ -54,6 +54,7 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
 import { dogBreeds } from '@/lib/config/dog-breeds';
+import { useSuccessNotification } from '@/lib/contexts/success-notification-context';
 
 interface PetData {
   // ペット情報
@@ -64,6 +65,7 @@ interface PetData {
   ageMonths: string;
   ageUnknown: boolean;
   size: string;
+  weight: string;
   color: string;
   personality: string[];
   features: string;
@@ -91,6 +93,7 @@ const initialFormData: PetData = {
   ageMonths: '',
   ageUnknown: false,
   size: '',
+  weight: '',
   color: '',
   personality: [],
   features: '',
@@ -156,6 +159,7 @@ function UploadPetContent() {
   
   const router = useRouter();
   const { user } = useAuth();
+  const { showSuccess: showNotification, showError } = useSuccessNotification();
 
   const handleInputChange = (field: keyof PetData) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
@@ -301,6 +305,7 @@ function UploadPetContent() {
         name: formData.petName, // petNameをnameに変更
         type: formData.petType, // petTypeをtypeに変更
         breed: formData.petBreed, // 犬種を保存
+        weight: formData.weight ? parseFloat(formData.weight) : null, // 体重を数値として保存
         colors: formData.color ? [formData.color] : [], // colorを配列形式に変換
         specialFeatures: formData.features, // featuresをspecialFeaturesに変更
         hasCollar: formData.hasCollar, // 首輪の有無を保存
@@ -345,12 +350,9 @@ function UploadPetContent() {
         // マッチングに失敗してもペット登録は成功として扱う
       }
       
-      setSuccess(true);
-      
-      // 5秒後にホームページへリダイレクト（マッチング結果を確認する時間を与える）
-      setTimeout(() => {
-        router.push('/');
-      }, 5000);
+      // 成功通知を表示してすぐにリダイレクト
+      showNotification(`${formData.petName}を迷子ペットとして登録しました。AIが自動的にマッチングを開始しています。`);
+      router.push('/');
       
     } catch (error: any) {
       console.error('Error adding document: ', error);
@@ -514,6 +516,21 @@ function UploadPetContent() {
                   </FormControl>
                 </Grid>
                 
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="体重"
+                    type="number"
+                    value={formData.weight}
+                    onChange={handleInputChange('weight')}
+                    placeholder="例: 5.5"
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">kg</InputAdornment>,
+                    }}
+                    helperText="おおよその体重を入力"
+                  />
+                </Grid>
+
                 <Grid item xs={12} md={6}>
                   <TextField
                     fullWidth
@@ -930,20 +947,6 @@ function UploadPetContent() {
             </Alert>
           )}
           
-          {success && (
-            <Alert 
-              severity="success" 
-              sx={{ mb: 3 }}
-              icon={<CheckCircleIcon />}
-            >
-              <Typography variant="subtitle1" fontWeight="bold">
-                登録が完了しました！
-              </Typography>
-              <Typography variant="body2">
-                AIエージェントが捜索を開始します。3秒後にダッシュボードへ移動します...
-              </Typography>
-            </Alert>
-          )}
 
           <Paper elevation={0} sx={{ p: 3, mb: 3 }}>
             <Stepper activeStep={activeStep} sx={{ mb: 4 }}>

@@ -37,6 +37,7 @@ import { db } from '@/lib/firebase/config';
 import { collection, query, onSnapshot, orderBy, limit, doc, updateDoc, getDoc } from 'firebase/firestore';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
+import ImageViewerModal from './ImageViewerModal';
 
 interface DetailedScoreItem {
   category: string;
@@ -83,6 +84,7 @@ interface MatchResult {
     name: string;
     type: string;
     size: string;
+    weight?: number;
     color?: string;
     colors: string[];
     hasCollar?: boolean;
@@ -103,6 +105,7 @@ interface MatchResult {
     id: string;
     petType: string;
     size: string;
+    weight?: number;
     color: string;
     foundAddress: string;
     foundDate: string;
@@ -184,6 +187,11 @@ export default function PetMatchingCard() {
   const [refreshing, setRefreshing] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [creatingChat, setCreatingChat] = useState(false);
+  const [imageViewerOpen, setImageViewerOpen] = useState(false);
+  const [viewerImages, setViewerImages] = useState<string[]>([]);
+  const [viewerIndex, setViewerIndex] = useState(0);
+  const [viewerTitle, setViewerTitle] = useState<string>('');
+  const [viewerPetType, setViewerPetType] = useState<'missing' | 'found'>('missing');
   const router = useRouter();
   const { user } = useAuth();
 
@@ -497,7 +505,22 @@ export default function PetMatchingCard() {
                       {/* 迷子ペット情報 */}
                       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                         {match.missingPet?.images?.[0] && (
-                          <Box sx={{ width: 100, height: 100, mr: 2 }}>
+                          <Box 
+                            sx={{ 
+                              width: 100, 
+                              height: 100, 
+                              mr: 2, 
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                            onClick={() => {
+                              setViewerImages(match.missingPet?.images || []);
+                              setViewerIndex(0);
+                              setViewerTitle(match.missingPet?.name || '迷子ペット');
+                              setViewerPetType('missing');
+                              setImageViewerOpen(true);
+                            }}
+                          >
                             <ImageWithLoading
                               src={match.missingPet.images[0]}
                               alt={match.missingPet.name || '迷子ペット'}
@@ -520,6 +543,7 @@ export default function PetMatchingCard() {
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             {match.missingPet?.type || match.missingPetType || '種類不明'} • {match.missingPet?.size || 'サイズ不明'}
+                            {match.missingPet?.weight && ` • ${match.missingPet.weight}kg`}
                           </Typography>
                           {match.missingPet?.lastSeen && (
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
@@ -535,7 +559,22 @@ export default function PetMatchingCard() {
                       {/* 見つかったペット情報 */}
                       <Box sx={{ flex: 1, display: 'flex', alignItems: 'center' }}>
                         {match.foundPet?.imageUrls?.[0] && (
-                          <Box sx={{ width: 100, height: 100, mr: 2 }}>
+                          <Box 
+                            sx={{ 
+                              width: 100, 
+                              height: 100, 
+                              mr: 2,
+                              cursor: 'pointer',
+                              '&:hover': { opacity: 0.8 }
+                            }}
+                            onClick={() => {
+                              setViewerImages(match.foundPet?.imageUrls || []);
+                              setViewerIndex(0);
+                              setViewerTitle('発見されたペット');
+                              setViewerPetType('found');
+                              setImageViewerOpen(true);
+                            }}
+                          >
                             <ImageWithLoading
                               src={match.foundPet.imageUrls[0]}
                               alt="Found pet"
@@ -558,6 +597,7 @@ export default function PetMatchingCard() {
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
                             {match.foundPet?.size || 'サイズ不明'} • {match.foundPet?.color || '色不明'}
+                            {match.foundPet?.weight && ` • ${match.foundPet.weight}kg`}
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
                             <LocationIcon fontSize="small" color="action" />
@@ -794,17 +834,31 @@ export default function PetMatchingCard() {
                         <Grid container spacing={1}>
                           {selectedMatch.missingPet.images.slice(0, 4).map((url: string, idx: number) => (
                             <Grid item xs={6} key={idx}>
-                              <ImageWithLoading
-                                src={url}
-                                alt={`Lost pet ${idx + 1}`}
-                                style={{
-                                  width: '100%',
-                                  height: 80,
-                                  objectFit: 'cover',
-                                  borderRadius: 4
+                              <Box
+                                sx={{
+                                  cursor: 'pointer',
+                                  '&:hover': { opacity: 0.8 }
                                 }}
-                                skeletonHeight={80}
-                              />
+                                onClick={() => {
+                                  setViewerImages(selectedMatch.missingPet?.images || []);
+                                  setViewerIndex(idx);
+                                  setViewerTitle(selectedMatch.missingPet?.name || '迷子ペット');
+                                  setViewerPetType('missing');
+                                  setImageViewerOpen(true);
+                                }}
+                              >
+                                <ImageWithLoading
+                                  src={url}
+                                  alt={`Lost pet ${idx + 1}`}
+                                  style={{
+                                    width: '100%',
+                                    height: 80,
+                                    objectFit: 'cover',
+                                    borderRadius: 4
+                                  }}
+                                  skeletonHeight={80}
+                                />
+                              </Box>
                             </Grid>
                           ))}
                         </Grid>
@@ -830,17 +884,31 @@ export default function PetMatchingCard() {
                         <Grid container spacing={1}>
                           {selectedMatch.foundPet.imageUrls.slice(0, 4).map((url: string, idx: number) => (
                             <Grid item xs={6} key={idx}>
-                              <ImageWithLoading
-                                src={url}
-                                alt={`Found pet ${idx + 1}`}
-                                style={{
-                                  width: '100%',
-                                  height: 80,
-                                  objectFit: 'cover',
-                                  borderRadius: 4
+                              <Box
+                                sx={{
+                                  cursor: 'pointer',
+                                  '&:hover': { opacity: 0.8 }
                                 }}
-                                skeletonHeight={80}
-                              />
+                                onClick={() => {
+                                  setViewerImages(selectedMatch.foundPet?.imageUrls || []);
+                                  setViewerIndex(idx);
+                                  setViewerTitle('発見されたペット');
+                                  setViewerPetType('found');
+                                  setImageViewerOpen(true);
+                                }}
+                              >
+                                <ImageWithLoading
+                                  src={url}
+                                  alt={`Found pet ${idx + 1}`}
+                                  style={{
+                                    width: '100%',
+                                    height: 80,
+                                    objectFit: 'cover',
+                                    borderRadius: 4
+                                  }}
+                                  skeletonHeight={80}
+                                />
+                              </Box>
                             </Grid>
                           ))}
                         </Grid>
@@ -967,6 +1035,42 @@ export default function PetMatchingCard() {
                           <Typography variant="body2" color="text.secondary" gutterBottom>サイズ</Typography>
                           <Typography variant="body1" fontWeight="500">
                             {selectedMatch.foundPet?.size || '不明'}
+                          </Typography>
+                        </Grid>
+                      </Grid>
+                    </Box>
+
+                    <Box sx={{ mb: 2, p: 2, bgcolor: 'grey.50', borderRadius: 1 }}>
+                      <Grid container spacing={2} alignItems="center">
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>体重</Typography>
+                          <Typography variant="body1" fontWeight="500">
+                            {selectedMatch.missingPet?.weight ? `${selectedMatch.missingPet.weight}kg` : '不明'}
+                          </Typography>
+                        </Grid>
+                        <Grid item xs={4} sx={{ textAlign: 'center' }}>
+                          <Chip 
+                            label={
+                              selectedMatch.missingPet?.weight && selectedMatch.foundPet?.weight
+                                ? Math.abs(selectedMatch.missingPet.weight - selectedMatch.foundPet.weight) <= 1 ? "高一致" 
+                                : Math.abs(selectedMatch.missingPet.weight - selectedMatch.foundPet.weight) <= 3 ? "中一致"
+                                : "低一致"
+                                : "データなし"
+                            }
+                            size="small"
+                            color={
+                              selectedMatch.missingPet?.weight && selectedMatch.foundPet?.weight
+                                ? Math.abs(selectedMatch.missingPet.weight - selectedMatch.foundPet.weight) <= 1 ? "success"
+                                : Math.abs(selectedMatch.missingPet.weight - selectedMatch.foundPet.weight) <= 3 ? "warning"
+                                : "default"
+                                : "default"
+                            }
+                          />
+                        </Grid>
+                        <Grid item xs={4}>
+                          <Typography variant="body2" color="text.secondary" gutterBottom>体重</Typography>
+                          <Typography variant="body1" fontWeight="500">
+                            {selectedMatch.foundPet?.weight ? `${selectedMatch.foundPet.weight}kg` : '不明'}
                           </Typography>
                         </Grid>
                       </Grid>
@@ -1167,6 +1271,16 @@ export default function PetMatchingCard() {
           </>
         )}
       </Dialog>
+
+      {/* 画像ビューアモーダル */}
+      <ImageViewerModal
+        open={imageViewerOpen}
+        onClose={() => setImageViewerOpen(false)}
+        images={viewerImages}
+        currentIndex={viewerIndex}
+        title={viewerTitle}
+        petType={viewerPetType}
+      />
 
       <style jsx global>{`
         @keyframes rotate {

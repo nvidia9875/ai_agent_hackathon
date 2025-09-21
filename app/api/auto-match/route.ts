@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { VisualDetectiveAgent } from '@/agents/visual-detective';
 import { getAdminFirestore, removeUndefinedFields } from '@/lib/firebase-admin/config';
 import { PetInfo, FoundPetInfo } from '@/types/pet';
+import { geminiModel } from '@/lib/config/gemini';
 
 // エージェントのシングルトンインスタンス
 let visualDetectiveAgent: VisualDetectiveAgent | null = null;
@@ -176,7 +177,7 @@ function calculateTimeMatchScore(missingPet: PetInfo, foundPet: FoundPetInfo): n
 }
 
 // 詳細なスコア内訳を計算
-function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetInfo) {
+async function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetInfo) {
   const scores = {
     // 基本情報
     petType: {
@@ -210,7 +211,7 @@ function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetInfo) {
     },
     // 外見の特徴
     features: {
-      score: calculateFeatureMatch(missingPet, foundPet),
+      score: await calculateFeatureMatch(missingPet, foundPet),
       missingValue: missingPet.specialFeatures,
       foundValue: foundPet.features,
       weight: 10,
@@ -252,15 +253,44 @@ function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetInfo) {
   };
 }
 
-// 特徴のマッチング度を計算
-function calculateFeatureMatch(missingPet: PetInfo, foundPet: FoundPetInfo): number {
-  const missingFeatures = (missingPet.specialFeatures || '').toLowerCase();
-  const foundFeatures = (foundPet.features || '').toLowerCase();
+// 特徴のマッチング度を計算（Gemini APIを使用）
+async function calculateFeatureMatch(missingPet: PetInfo, foundPet: FoundPetInfo): Promise<number> {
+  const missingFeatures = missingPet.specialFeatures || '';
+  const foundFeatures = foundPet.features || '';
   
   if (!missingFeatures || !foundFeatures) return 0;
   
-  const missingWords = missingFeatures.split(/[,、。\s]+/).filter(w => w.length > 1);
-  const foundWords = foundFeatures.split(/[,、。\s]+/).filter(w => w.length > 1);
+  try {
+    const prompt = `
+以下の2つのペットの外見の特徴を比較し、一致度を0-100の数値で評価してください。
+部分的な一致や意味的な一致も考慮してください。
+
+迷子ペットの特徴: ${missingFeatures}
+発見ペットの特徴: ${foundFeatures}
+
+例：
+- 「全体は茶色だけど足の色が白い」と「足が白色」→ 高い一致度（70-90）
+- 「耳が垂れている」と「垂れ耳」→ 高い一致度（80-100）
+- 「黒い斑点がある」と「黒い模様」→ 中程度の一致度（50-70）
+
+数値のみを返してください。`;
+    
+    const result = await geminiModel.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
+    const score = parseInt(text);
+    
+    if (!isNaN(score) && score >= 0 && score <= 100) {
+      console.log(`Feature match score via AI: ${score}% for "${missingFeatures}" vs "${foundFeatures}"`);
+      return score;
+    }
+  } catch (error) {
+    console.error('Error using Gemini for feature matching:', error);
+  }
+  
+  // フォールバック: 簡易的なキーワードマッチング
+  const missingWords = missingFeatures.toLowerCase().split(/[,、。\s]+/).filter(w => w.length > 1);
+  const foundWords = foundFeatures.toLowerCase().split(/[,、。\s]+/).filter(w => w.length > 1);
   
   if (missingWords.length === 0 || foundWords.length === 0) return 0;
   
@@ -340,7 +370,7 @@ export async function POST(request: NextRequest) {
           // スコアが30%以上のマッチを保存
           if (matchResult.matchScore >= 30) {
             // 詳細なスコア内訳を計算
-            const detailedScores = calculateDetailedScores(missingPet, foundPet);
+            const detailedScores = await calculateDetailedScores(missingPet, foundPet);
             
             // マッチング結果をデータベースに保存
             console.log(`Saving match to database: missingPet=${missingPet.name}, foundPet=${foundPet.petType}, score=${matchResult.matchScore}%`);
@@ -458,7 +488,7 @@ export async function POST(request: NextRequest) {
           // AIマッチング結果を閾値を下げて保存（デバッグ用）
           if (matchResult.matchScore >= 10) {
             console.log('Saving low-score AI match for analysis...');
-            const detailedScores = calculateDetailedScores(missingPet, foundPet);
+            const detailedScores = await calculateDetailedScores(missingPet, foundPet);
             
             const matchDoc = await db.collection('matches').add({
               ...matchResult,

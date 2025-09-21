@@ -5,8 +5,10 @@ export interface PetFeatures {
   breed?: string;
   color?: string;
   size?: string;
+  weight?: number;
   age?: string;
   distinguishingMarks?: string;
+  features?: string; // 外見の特徴（自由記述）
   temperament?: string;
   otherFeatures?: string;
 }
@@ -50,7 +52,9 @@ export class PetFeatureAnalyzer {
 - 品種: ${lostPet.breed || '不明'}
 - 色: ${lostPet.color || '不明'}
 - サイズ: ${lostPet.size || '不明'}
+- 体重: ${lostPet.weight ? `${lostPet.weight}kg` : '不明'}
 - 年齢: ${lostPet.age || '不明'}
+- 外見の特徴: ${lostPet.features || 'なし'}
 - 特徴的なマーク: ${lostPet.distinguishingMarks || 'なし'}
 - 性格: ${lostPet.temperament || '不明'}
 - その他の特徴: ${lostPet.otherFeatures || 'なし'}
@@ -60,7 +64,9 @@ export class PetFeatureAnalyzer {
 - 品種: ${foundPet.breed || '不明'}
 - 色: ${foundPet.color || '不明'}
 - サイズ: ${foundPet.size || '不明'}
+- 体重: ${foundPet.weight ? `${foundPet.weight}kg` : '不明'}
 - 年齢: ${foundPet.age || '不明'}
+- 外見の特徴: ${foundPet.features || 'なし'}
 - 特徴的なマーク: ${foundPet.distinguishingMarks || 'なし'}
 - 性格: ${foundPet.temperament || '不明'}
 - その他の特徴: ${foundPet.otherFeatures || 'なし'}
@@ -90,7 +96,17 @@ export class PetFeatureAnalyzer {
       "explanation": "一致/不一致の理由"
     },
     {
+      "category": "体重",
+      "similarity": [0-100のカテゴリ別一致度],
+      "explanation": "一致/不一致の理由"
+    },
+    {
       "category": "年齢",
+      "similarity": [0-100のカテゴリ別一致度],
+      "explanation": "一致/不一致の理由"
+    },
+    {
+      "category": "外見の特徴",
       "similarity": [0-100のカテゴリ別一致度],
       "explanation": "一致/不一致の理由"
     },
@@ -115,9 +131,10 @@ export class PetFeatureAnalyzer {
 
 重要な点:
 - 種類が異なる場合は、総合スコアは非常に低くなるべきです
-- 特徴的なマークは重要な判断材料です
+- 外見の特徴は非常に重要です。「足が白い」と「全体は茶色だけど足の色が白い」のように、共通の特徴がある場合は高いスコアを付けてください
+- 特徴的なマークも重要な判断材料です
 - 不明な項目はスコア計算から除外してください
-- フリーテキストの「その他の特徴」は文脈を理解して比較してください`;
+- フリーテキストの「外見の特徴」「その他の特徴」は文脈を理解して、意味的な一致を評価してください`;
   }
 
   private parseResponse(text: string): MatchingResult {
@@ -164,7 +181,17 @@ export class PetFeatureAnalyzer {
     }
 
     if (lostPet.size && foundPet.size && lostPet.size === foundPet.size) {
-      score += 15;
+      score += 10;
+      factors++;
+    }
+
+    if (lostPet.weight && foundPet.weight) {
+      const weightDiff = Math.abs(lostPet.weight - foundPet.weight);
+      if (weightDiff <= 1) {
+        score += 10;
+      } else if (weightDiff <= 3) {
+        score += 5;
+      }
       factors++;
     }
 

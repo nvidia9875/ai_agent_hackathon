@@ -517,7 +517,7 @@ export default function AgentDashboardPage() {
                       <ListItem>
                         <ListItemText 
                           primary="精度"
-                          secondary={`予測精度: ${(agentStats.successRate * 1.1).toFixed(1)}%`}
+                          secondary={`予測精度: ${Math.min(agentStats.successRate * 1.1, 100).toFixed(1)}%`}
                         />
                       </ListItem>
                     </List>

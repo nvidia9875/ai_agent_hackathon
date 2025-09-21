@@ -7,53 +7,17 @@ import { useNotifications } from '@/lib/contexts/notification-context';
 import { signOut } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
 
-interface AgentStatus {
-  name: string;
-  status: 'idle' | 'processing' | 'error' | 'success';
-  description?: string;
-  lastActivity?: Date;
-}
 
 export default function Header() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotificationMenu, setShowNotificationMenu] = useState(false);
-  const [activeAgents, setActiveAgents] = useState<AgentStatus[]>([]);
-  const [analyzedImages, setAnalyzedImages] = useState(0);
-  const [totalProgress, setTotalProgress] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
   const { user, loading } = useAuth();
   const { unreadCount, chatNotifications, markAsRead } = useNotifications();
 
-  // エージェントステータスを定期的に取得
-  useEffect(() => {
-    const fetchAgentStatus = async () => {
-      try {
-        const response = await fetch('/api/agents/status');
-        if (response.ok) {
-          const data = await response.json();
-          
-          // アクティブなエージェントのみフィルタ
-          const active = data.agents?.filter((agent: AgentStatus) => 
-            agent.status === 'processing' || agent.status === 'success'
-          ) || [];
-          
-          setActiveAgents(active);
-          setAnalyzedImages(data.analyzedImages || 0);
-          setTotalProgress(data.totalProgress || 0);
-        }
-      } catch (error) {
-        console.error('Failed to fetch agent status:', error);
-      }
-    };
-
-    fetchAgentStatus();
-    const interval = setInterval(fetchAgentStatus, 5000); // 5秒ごとに更新
-
-    return () => clearInterval(interval);
-  }, []);
 
   // ドロップダウン外をクリックしたときに閉じる
   useEffect(() => {
@@ -78,29 +42,6 @@ export default function Header() {
     };
   }, [showDropdown, showUserMenu, showNotificationMenu]);
 
-  // ステータスアイコンの色を取得
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'processing':
-        return 'bg-blue-500 animate-pulse';
-      case 'success':
-        return 'bg-green-500';
-      case 'error':
-        return 'bg-red-500';
-      default:
-        return 'bg-gray-400';
-    }
-  };
-
-  // 総合ステータスを計算
-  const getOverallStatus = () => {
-    if (activeAgents.some(a => a.status === 'error')) return 'error';
-    if (activeAgents.some(a => a.status === 'processing')) return 'processing';
-    if (activeAgents.some(a => a.status === 'success')) return 'success';
-    return 'idle';
-  };
-
-  const overallStatus = getOverallStatus();
   
   const handleLogout = async () => {
     try {
@@ -127,111 +68,6 @@ export default function Header() {
 
           {/* 右側のコントロール */}
           <div className="flex items-center space-x-3">
-            {/* AIエージェントステータス */}
-            <div className="relative" ref={dropdownRef}>
-            <button
-              onClick={() => setShowDropdown(!showDropdown)}
-              className="flex items-center space-x-3 px-3 py-2 rounded-lg hover:bg-gray-100 transition-colors"
-            >
-              {/* ステータスインジケーター */}
-              <div className="relative">
-                <div className={`w-3 h-3 rounded-full ${getStatusColor(overallStatus)}`} />
-                {overallStatus === 'processing' && (
-                  <div className="absolute inset-0 w-3 h-3 rounded-full bg-blue-500 animate-ping" />
-                )}
-              </div>
-              
-              {/* ステータステキスト */}
-              <span className="text-sm text-gray-700">
-                {activeAgents.length > 0 
-                  ? `${activeAgents.length}個のエージェント稼働中`
-                  : 'エージェント待機中'
-                }
-              </span>
-
-              {/* ドロップダウンアイコン */}
-              <svg 
-                className={`w-4 h-4 text-gray-500 transition-transform ${showDropdown ? 'rotate-180' : ''}`}
-                fill="none" 
-                viewBox="0 0 24 24" 
-                stroke="currentColor"
-              >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
-
-            {/* エージェント ドロップダウンメニュー */}
-            {showDropdown && (
-              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl border border-gray-200 overflow-hidden">
-                {/* ヘッダー */}
-                <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white px-4 py-3">
-                  <h3 className="font-semibold">AIエージェント詳細</h3>
-                  <p className="text-xs text-blue-100 mt-1">リアルタイム処理状況</p>
-                </div>
-
-                {/* 統計情報 */}
-                <div className="grid grid-cols-3 gap-2 p-4 border-b border-gray-200">
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{analyzedImages}</div>
-                    <div className="text-xs text-gray-500">解析済み画像</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{activeAgents.length}</div>
-                    <div className="text-xs text-gray-500">アクティブ</div>
-                  </div>
-                  <div className="text-center">
-                    <div className="text-2xl font-bold text-gray-900">{totalProgress}%</div>
-                    <div className="text-xs text-gray-500">進捗率</div>
-                  </div>
-                </div>
-
-                {/* エージェントリスト */}
-                <div className="max-h-64 overflow-y-auto">
-                  {activeAgents.length > 0 ? (
-                    <div className="p-4 space-y-3">
-                      {activeAgents.map((agent, index) => (
-                        <div key={index} className="flex items-start space-x-3">
-                          <div className={`w-2 h-2 rounded-full mt-1.5 ${getStatusColor(agent.status)}`} />
-                          <div className="flex-1">
-                            <div className="text-sm font-medium text-gray-900">{agent.name}</div>
-                            {agent.description && (
-                              <div className="text-xs text-gray-500 mt-0.5">{agent.description}</div>
-                            )}
-                            {agent.lastActivity && (
-                              <div className="text-xs text-gray-400 mt-0.5">
-                                {new Date(agent.lastActivity).toLocaleTimeString()}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="p-8 text-center">
-                      <div className="w-12 h-12 bg-gray-100 rounded-full mx-auto mb-3 flex items-center justify-center">
-                        <svg className="w-6 h-6 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} 
-                            d="M20 12H4M12 4v16" />
-                        </svg>
-                      </div>
-                      <p className="text-sm text-gray-500">現在稼働中のエージェントはありません</p>
-                      <p className="text-xs text-gray-400 mt-1">タスクが開始されると表示されます</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* フッター */}
-                <div className="bg-gray-50 px-4 py-2 border-t border-gray-200">
-                  <button
-                    onClick={() => setShowDropdown(false)}
-                    className="text-xs text-blue-600 hover:text-blue-700 font-medium"
-                  >
-                    詳細を見る →
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
 
           {/* 通知アイコン */}
           {user && (

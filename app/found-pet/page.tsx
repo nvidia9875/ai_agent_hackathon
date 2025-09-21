@@ -61,12 +61,14 @@ import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
 import { dogBreeds } from '@/lib/config/dog-breeds';
+import { useSuccessNotification } from '@/lib/contexts/success-notification-context';
 
 interface FoundPetData {
   // 見つけたペットの情報
   petType: string;
   petBreed: string;
   size: string;
+  weight: string;
   color: string;
   features: string;
   microchipNumber: string;
@@ -94,6 +96,7 @@ const initialFormData: FoundPetData = {
   petType: '',
   petBreed: '',
   size: '',
+  weight: '',
   color: '',
   features: '',
   microchipNumber: '',
@@ -141,6 +144,7 @@ function FoundPetContent() {
   const [gettingLocation, setGettingLocation] = useState(false);
   
   const router = useRouter();
+  const { showSuccess: showNotification, showError: showErrorNotification } = useSuccessNotification();
 
   const handleInputChange = (field: keyof FoundPetData) => (
     event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement> | { target: { value: string } }
@@ -284,6 +288,7 @@ function FoundPetContent() {
       const docRef = await addDoc(collection(db, 'foundPets'), {
         ...formData,
         breed: formData.petBreed, // 犬種を保存
+        weight: formData.weight ? parseFloat(formData.weight) : null, // 体重を数値として保存
         finderNickname: formData.finderNickname, // ニックネームを保存
         userId: user?.uid, // ユーザーIDを保存
         imageUrls,
@@ -318,12 +323,9 @@ function FoundPetContent() {
         // マッチングに失敗してもペット登録は成功として扱う
       }
       
-      setSuccess(true);
-      
-      // 5秒後にホームページへリダイレクト（マッチング結果を確認する時間を与える）
-      setTimeout(() => {
-        router.push('/');
-      }, 5000);
+      // 成功通知を表示してすぐにリダイレクト
+      showNotification('ペットの発見報告を登録しました。AIが自動的にマッチングを開始しています。');
+      router.push('/');
       
     } catch (error: any) {
       console.error('Error adding document: ', error);
@@ -355,21 +357,6 @@ function FoundPetContent() {
             </Alert>
           )}
           
-          {success && (
-            <Alert 
-              severity="success" 
-              sx={{ mb: 3 }}
-              icon={<CheckCircleIcon />}
-            >
-              <Typography variant="subtitle1" fontWeight="bold">
-                報告ありがとうございます！
-              </Typography>
-              <Typography variant="body2">
-                Visual Detective AIが画像を解析し、迷子ペットとのマッチングを実行中です。<br />
-                5秒後にダッシュボードでマッチング結果をご確認いただけます...
-              </Typography>
-            </Alert>
-          )}
 
           {/* 1. 写真アップロード - 最重要 */}
           <Paper 
@@ -547,6 +534,21 @@ function FoundPetContent() {
                       ))}
                     </Select>
                   </FormControl>
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="推定体重"
+                    type="number"
+                    value={formData.weight}
+                    onChange={handleInputChange('weight')}
+                    placeholder="例: 5.5"
+                    InputProps={{
+                      endAdornment: <InputAdornment position="end">kg</InputAdornment>,
+                    }}
+                    helperText="おおよその体重"
+                  />
                 </Grid>
 
                 <Grid item xs={12} md={6}>
