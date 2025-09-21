@@ -1,0 +1,87 @@
+{
+  "projectId": "calm-seeker-471513-t3",
+  "location": "us-central1",
+  "agents": [
+    {
+      "id": "search-coordinator-adk",
+      "name": "捜索統括エージェント",
+      "description": "迷子ペットの捜索戦略を立案し、他のエージェントと連携",
+      "model": "gemini-1.5-pro",
+      "version": "1.0.0",
+      "capabilities": [
+        "search_area_analysis",
+        "resource_coordination",
+        "strategy_optimization"
+      ],
+      "tools": [
+        {
+          "name": "analyze_area",
+          "type": "function",
+          "description": "捜索エリアを分析"
+        },
+        {
+          "name": "coordinate_agents",
+          "type": "function",
+          "description": "エージェント間の連携"
+        },
+        {
+          "name": "update_strategy",
+          "type": "function",
+          "description": "戦略の更新"
+        }
+      ]
+    },
+    {
+      "id": "behavior-predictor-adk",
+      "name": "ペット行動予測エージェント",
+      "description": "ペットの行動パターンを分析し移動先を予測",
+      "model": "gemini-1.5-pro",
+      "version": "1.0.0",
+      "capabilities": [
+        "behavior_analysis",
+        "movement_prediction",
+        "hideout_identification"
+      ],
+      "tools": [
+        {
+          "name": "analyze_behavior",
+          "type": "function",
+          "description": "行動パターン分析"
+        },
+        {
+          "name": "predict_movement",
+          "type": "function",
+          "description": "移動予測"
+        },
+        {
+          "name": "identify_hideouts",
+          "type": "function",
+          "description": "隠れ場所特定"
+        }
+      ]
+    }
+  ],
+  "vertexAI": {
+    "endpoint": "${VERTEX_AI_ENDPOINT}",
+    "modelId": "${VERTEX_AI_MODEL_ID}",
+    "temperature": 0.7,
+    "maxTokens": 2048,
+    "topP": 0.9,
+    "topK": 40
+  },
+  "monitoring": {
+    "enabled": true,
+    "metricsInterval": 60000,
+    "logLevel": "info"
+  },
+  "storage": {
+    "bucket": "pawmate-uploads-calm-seeker",
+    "sessionExpiration": 86400
+  },
+  "pubsub": {
+    "topics": {
+      "agentTasks": "agent-tasks",
+      "agentResults": "agent-results"
+    }
+  }
+}

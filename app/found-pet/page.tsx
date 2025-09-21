@@ -24,7 +24,8 @@ import {
   CardContent,
   Divider,
   Chip,
-  InputAdornment
+  InputAdornment,
+  Autocomplete
 } from '@mui/material';
 import {
   CloudUpload as CloudUploadIcon,
@@ -59,13 +60,16 @@ import { db, storage } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
+import { dogBreeds } from '@/lib/config/dog-breeds';
 
 interface FoundPetData {
   // 見つけたペットの情報
   petType: string;
+  petBreed: string;
   size: string;
   color: string;
   features: string;
+  microchipNumber: string;
   hasCollar: boolean;
   collarDescription: string;
   
@@ -88,9 +92,11 @@ interface FoundPetData {
 
 const initialFormData: FoundPetData = {
   petType: '',
+  petBreed: '',
   size: '',
   color: '',
   features: '',
+  microchipNumber: '',
   hasCollar: false,
   collarDescription: '',
   foundDate: '',
@@ -277,6 +283,7 @@ function FoundPetContent() {
       // Firestoreにデータを保存
       const docRef = await addDoc(collection(db, 'foundPets'), {
         ...formData,
+        breed: formData.petBreed, // 犬種を保存
         finderNickname: formData.finderNickname, // ニックネームを保存
         userId: user?.uid, // ユーザーIDを保存
         imageUrls,
@@ -484,7 +491,13 @@ function FoundPetContent() {
                     <InputLabel>動物の種類</InputLabel>
                     <Select
                       value={formData.petType}
-                      onChange={(e) => handleInputChange('petType')(e)}
+                      onChange={(e) => {
+                        handleInputChange('petType')(e);
+                        // ペットタイプが犬以外の場合は犬種をクリア
+                        if (e.target.value !== '犬') {
+                          setFormData(prev => ({ ...prev, petBreed: '' }));
+                        }
+                      }}
                       label="動物の種類"
                     >
                       {petTypes.map(type => (
@@ -496,6 +509,30 @@ function FoundPetContent() {
                     </FormHelperText>
                   </FormControl>
                 </Grid>
+
+                {formData.petType === '犬' && (
+                  <Grid item xs={12} md={6}>
+                    <Autocomplete
+                      value={formData.petBreed || null}
+                      onChange={(event, newValue) => {
+                        setFormData(prev => ({ ...prev, petBreed: newValue || '' }));
+                      }}
+                      options={dogBreeds}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="犬種"
+                          helperText="犬種がわからない場合は「不明」を選択"
+                        />
+                      )}
+                      fullWidth
+                      disableClearable={false}
+                      openOnFocus
+                      autoHighlight
+                      noOptionsText="該当する犬種が見つかりません"
+                    />
+                  </Grid>
+                )}
 
                 <Grid item xs={12} md={6}>
                   <FormControl fullWidth>
@@ -520,6 +557,17 @@ function FoundPetContent() {
                     onChange={handleInputChange('color')}
                     placeholder="例: 茶色と白のぶち"
                     helperText="特徴的な色や模様"
+                  />
+                </Grid>
+
+                <Grid item xs={12} md={6}>
+                  <TextField
+                    fullWidth
+                    label="マイクロチップ番号"
+                    value={formData.microchipNumber}
+                    onChange={handleInputChange('microchipNumber')}
+                    placeholder="15桁の番号（わかる場合）"
+                    helperText="首輪や体に記載されている場合があります"
                   />
                 </Grid>
 

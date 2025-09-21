@@ -29,6 +29,7 @@ import {
   LinearProgress,
   InputAdornment
 } from '@mui/material';
+import Autocomplete from '@mui/material/Autocomplete';
 import {
   CloudUpload as CloudUploadIcon,
   Delete as DeleteIcon,
@@ -52,11 +53,13 @@ import { db, storage } from '@/lib/firebase/config';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
+import { dogBreeds } from '@/lib/config/dog-breeds';
 
 interface PetData {
   // ペット情報
   petName: string;
   petType: string;
+  petBreed: string;
   ageYears: string;
   ageMonths: string;
   ageUnknown: boolean;
@@ -83,6 +86,7 @@ interface PetData {
 const initialFormData: PetData = {
   petName: '',
   petType: '',
+  petBreed: '',
   ageYears: '',
   ageMonths: '',
   ageUnknown: false,
@@ -202,8 +206,16 @@ function UploadPetContent() {
           errors.petType = true;
           hasError = true;
         }
+        // 犬の場合は犬種も必須
+        if (formData.petType === '犬' && !formData.petBreed) {
+          errors.petBreed = true;
+          hasError = true;
+        }
         if (hasError) {
-          setError('ペットの名前と種類は必須です');
+          const errorMsg = formData.petType === '犬' && !formData.petBreed 
+            ? 'ペットの名前、種類、犬種は必須です'
+            : 'ペットの名前と種類は必須です';
+          setError(errorMsg);
           setFieldErrors(errors);
           return false;
         }
@@ -288,6 +300,7 @@ function UploadPetContent() {
         images: imageUrls, // imageUrlsをimagesに変更してPetMatcherと互換性を保つ
         name: formData.petName, // petNameをnameに変更
         type: formData.petType, // petTypeをtypeに変更
+        breed: formData.petBreed, // 犬種を保存
         colors: formData.color ? [formData.color] : [], // colorを配列形式に変換
         specialFeatures: formData.features, // featuresをspecialFeaturesに変更
         hasCollar: formData.hasCollar, // 首輪の有無を保存
@@ -385,7 +398,13 @@ function UploadPetContent() {
                     <InputLabel>ペットの種類</InputLabel>
                     <Select
                       value={formData.petType}
-                      onChange={(e) => handleInputChange('petType')(e)}
+                      onChange={(e) => {
+                        handleInputChange('petType')(e);
+                        // ペットタイプが犬以外の場合は犬種をクリア
+                        if (e.target.value !== '犬') {
+                          setFormData(prev => ({ ...prev, petBreed: '' }));
+                        }
+                      }}
                       label="ペットの種類"
                     >
                       {petTypes.map(type => (
@@ -395,6 +414,32 @@ function UploadPetContent() {
                     <FormHelperText>該当する種類を選択してください</FormHelperText>
                   </FormControl>
                 </Grid>
+                
+                {formData.petType === '犬' && (
+                  <Grid item xs={12}>
+                    <Autocomplete
+                      value={formData.petBreed || null}
+                      onChange={(event, newValue) => {
+                        setFormData(prev => ({ ...prev, petBreed: newValue || '' }));
+                      }}
+                      options={dogBreeds}
+                      renderInput={(params) => (
+                        <TextField
+                          {...params}
+                          label="犬種を選択"
+                          required
+                          error={fieldErrors.petBreed}
+                          helperText={fieldErrors.petBreed ? '犬種は必須です' : '犬種を選択または検索してください（わからない場合は「不明」を選択）'}
+                        />
+                      )}
+                      fullWidth
+                      disableClearable={false}
+                      openOnFocus
+                      autoHighlight
+                      noOptionsText="該当する犬種が見つかりません"
+                    />
+                  </Grid>
+                )}
                 
                 <Grid item xs={12}>
                   <Divider sx={{ my: 1 }}>

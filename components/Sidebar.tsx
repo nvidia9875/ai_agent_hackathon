@@ -16,7 +16,8 @@ import {
   Dashboard as DashboardIcon,
   FileUpload as FileUploadIcon,
   Forum as ForumIcon,
-  Settings as SettingsIcon
+  Settings as SettingsIcon,
+  SmartToy as SmartToyIcon
 } from '@mui/icons-material';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -114,6 +115,31 @@ export default function Sidebar() {
               </ListItemIcon>
               <ListItemText 
                 primary="ペット発見報告" 
+                primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
+              />
+            </ListItemButton>
+          </ListItem>
+
+          <ListItem disablePadding sx={{ mb: 0.5 }}>
+            <ListItemButton
+              component={Link}
+              href="/agent-dashboard"
+              sx={{ 
+                borderRadius: 2,
+                ...(pathname === '/agent-dashboard' ? {
+                  backgroundColor: 'primary.50',
+                  color: 'primary.main',
+                  '&:hover': { backgroundColor: 'primary.100' }
+                } : {
+                  '&:hover': { backgroundColor: 'grey.100' }
+                })
+              }}
+            >
+              <ListItemIcon>
+                <SmartToyIcon sx={{ color: pathname === '/agent-dashboard' ? 'primary.main' : 'inherit' }} />
+              </ListItemIcon>
+              <ListItemText 
+                primary="AI捜索統括" 
                 primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 500 }}
               />
             </ListItemButton>

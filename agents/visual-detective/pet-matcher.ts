@@ -1,6 +1,7 @@
 import { PetInfo, FoundPetInfo } from '@/types/pet';
 import { VisualAnalysisResult, PetMatchResult } from '@/types/agents';
 import { VisionAIClient } from './vision-ai-client';
+import { getBreedSimilarityScore } from '@/lib/config/dog-breeds';
 
 export class PetMatcher {
   private visionClient: VisionAIClient;
@@ -20,6 +21,34 @@ export class PetMatcher {
   ): Promise<PetMatchResult> {
     console.log(`[PetMatcher] Starting match between missing pet "${missingPet.name}" and found pet`);
     console.log(`Missing pet: ${missingPet.type}, Found pet: ${foundPet.petType}`);
+    
+    // マイクロチップ番号が一致する場合は即座に100%マッチを返す
+    const missingChip = (missingPet as any).microchipNumber || (missingPet as any).microchipId;
+    const foundChip = foundPet.microchipNumber;
+    
+    if (missingChip && foundChip && missingChip === foundChip) {
+      console.log(`[PetMatcher] Microchip match found! ${missingChip}`);
+      return {
+        missingPetId: missingPet.id || '',
+        foundPetId: foundPet.id || '',
+        matchScore: 100,
+        visualSimilarity: 100,
+        locationProximity: 100,
+        timeDifference: this.calculateTimeDifference(missingPet, foundPet),
+        matchDetails: {
+          type: true,
+          size: true,
+          breed: true,
+          microchip: true,
+          color: missingPet.colors,
+          features: ['マイクロチップ番号が完全一致']
+        },
+        analysisResult: this.getDefaultAnalysis(),
+        confidence: 1.0,
+        recommendedAction: 'high_match',
+        createdAt: new Date()
+      } as PetMatchResult;
+    }
     
     // 時系列の矛盾チェック（発見日が迷子日より前の場合は即座に低スコア返却）
     const missingDate = new Date(missingPet.lastSeen.date);
@@ -92,6 +121,7 @@ export class PetMatcher {
     // スコア計算
     const visualSimilarity = this.calculateVisualSimilarity(missingAnalysis, foundAnalysis);
     const typeMatch = this.matchPetType(missingPet, foundPet);
+    const breedScore = this.calculateBreedScore(missingPet, foundPet);
     const sizeMatch = this.matchSize(missingPet, foundPet);
     const colorMatch = this.matchColors(missingPet, foundPet);
     const locationProximity = this.calculateLocationProximity(missingPet, foundPet);
@@ -100,6 +130,7 @@ export class PetMatcher {
     console.log(`[PetMatcher] Scoring details:`);
     console.log(`  Visual similarity: ${visualSimilarity}%`);
     console.log(`  Type match: ${typeMatch}`);
+    console.log(`  Breed similarity: ${Math.round(breedScore * 100)}%`);
     console.log(`  Size match: ${sizeMatch}`);
     console.log(`  Color matches: ${colorMatch.length > 0 ? colorMatch.join(', ') : 'none'}`);
     console.log(`  Location proximity: ${locationProximity}%`);
@@ -112,23 +143,29 @@ export class PetMatcher {
     if (missingAnalysis && foundAnalysis && 
         missingAnalysis.confidence > 0.5 && foundAnalysis.confidence > 0.5) {
       console.log('Using AI-heavy weighting (high confidence)');
+      // 犬種が一致している場合は非常に高い重みを与える
+      const breedWeight = breedScore >= 1.0 ? 30 : breedScore * 20;
       weights = {
-        visualSimilarity: visualSimilarity * 0.45,  // 45% (AI優先)
-        typeMatch: typeMatch ? 25 : 0,              // 25%
-        sizeMatch: sizeMatch ? 15 : 0,              // 15%
-        colorMatch: colorMatch.length > 0 ? 10 : 0, // 10%
-        locationProximity: locationProximity * 0.03, // 3%
-        timeDifference: (100 - timeDifference) * 0.02 // 2%
+        visualSimilarity: visualSimilarity * 0.35,  // 35% (AI優先)
+        typeMatch: typeMatch ? 15 : 0,              // 15%
+        breedMatch: breedWeight,                    // 20-30% (犬種マッチング)
+        sizeMatch: sizeMatch ? 10 : 0,              // 10%
+        colorMatch: colorMatch.length > 0 ? 8 : 0,  // 8%
+        locationProximity: locationProximity * 0.02, // 2%
+        timeDifference: Math.max(0, 10 - timeDifference * 0.1) // 最大10%
       };
     } else {
       console.log('Using balanced weighting (low AI confidence)');
+      // 犬種が一致している場合は非常に高い重みを与える
+      const breedWeight = breedScore >= 1.0 ? 35 : breedScore * 25;
       weights = {
-        visualSimilarity: visualSimilarity * 0.20,  // 20% (低い信頼度)
-        typeMatch: typeMatch ? 35 : 0,              // 35% (基本情報重視)
-        sizeMatch: sizeMatch ? 25 : 0,              // 25%
-        colorMatch: colorMatch.length > 0 ? 15 : 0, // 15%
-        locationProximity: locationProximity * 0.03, // 3%
-        timeDifference: (100 - timeDifference) * 0.02 // 2%
+        visualSimilarity: visualSimilarity * 0.15,  // 15% (低い信頼度)
+        typeMatch: typeMatch ? 25 : 0,              // 25% (基本情報重視)
+        breedMatch: breedWeight,                    // 25-35% (犬種マッチング)
+        sizeMatch: sizeMatch ? 15 : 0,              // 15%
+        colorMatch: colorMatch.length > 0 ? 10 : 0, // 10%
+        locationProximity: locationProximity * 0.02, // 2%
+        timeDifference: Math.max(0, 8 - timeDifference * 0.08) // 最大8%
       };
     }
     
@@ -149,6 +186,8 @@ export class PetMatcher {
       matchDetails: {
         type: typeMatch,
         size: sizeMatch,
+        breed: breedScore >= 1.0, // 完全一致の場合のみtrue
+        microchip: false, // マイクロチップ不一致（一致していたら既に上で返している）
         color: colorMatch,
         features: this.matchFeatures(missingPet, foundPet)
       },
@@ -290,6 +329,36 @@ export class PetMatcher {
   }
 
   /**
+   * 犬種の類似度スコア計算
+   */
+  private calculateBreedScore(missingPet: PetInfo, foundPet: FoundPetInfo): number {
+    // 両方とも犬でない場合はスコアを返さない
+    if (missingPet.type !== '犬' || foundPet.petType !== '犬') {
+      return 0;
+    }
+    
+    // breed情報を取得（PetInfoとFoundPetInfoの型定義が異なる可能性があるため、安全に取得）
+    const missingBreed = (missingPet as any).breed || (missingPet as any).petBreed;
+    const foundBreed = (foundPet as any).breed || (foundPet as any).petBreed;
+    
+    // 犬種情報がない場合
+    if (!missingBreed && !foundBreed) {
+      return 0.3; // 両方とも不明の場合は低めのスコア
+    }
+    
+    // 片方だけ犬種情報がある場合
+    if (!missingBreed || !foundBreed) {
+      return 0.2; // 情報不足のため低スコア
+    }
+    
+    // 犬種類似度スコアを計算
+    const score = getBreedSimilarityScore(missingBreed, foundBreed);
+    console.log(`[PetMatcher] Breed matching: ${missingBreed} vs ${foundBreed} = ${score}`);
+    
+    return score;
+  }
+
+  /**
    * サイズのマッチング
    */
   private matchSize(missingPet: PetInfo, foundPet: FoundPetInfo): boolean {
@@ -300,23 +369,43 @@ export class PetMatcher {
    * 色のマッチング
    */
   private matchColors(missingPet: PetInfo, foundPet: FoundPetInfo): string[] {
-    const foundColors = foundPet.color.toLowerCase().split(/[,、\s]+/);
-    return missingPet.colors.filter(color => 
-      foundColors.some(fc => fc.includes(color.toLowerCase()) || 
-                            color.toLowerCase().includes(fc))
-    );
+    if (!foundPet.color || !missingPet.colors || missingPet.colors.length === 0) {
+      return [];
+    }
+    
+    const foundColors = foundPet.color.toLowerCase().split(/[,、\s]+/).filter(c => c.trim() !== '');
+    return missingPet.colors
+      .filter(color => color && color.trim() !== '')
+      .filter(color => 
+        foundColors.some(fc => fc.includes(color.toLowerCase()) || 
+                              color.toLowerCase().includes(fc))
+      );
   }
 
   /**
    * 特徴のマッチング
    */
   private matchFeatures(missingPet: PetInfo, foundPet: FoundPetInfo): string[] {
-    const missingFeatures = missingPet.specialFeatures.toLowerCase().split(/[,、。\s]+/);
-    const foundFeatures = foundPet.features.toLowerCase().split(/[,、。\s]+/);
+    if (!missingPet.specialFeatures || !foundPet.features) {
+      return [];
+    }
     
-    return missingFeatures.filter(mf => 
-      foundFeatures.some(ff => ff.includes(mf) || mf.includes(ff))
-    );
+    const missingFeatures = missingPet.specialFeatures.toLowerCase()
+      .split(/[,、。\s]+/)
+      .filter(f => f.trim() !== '');
+    const foundFeatures = foundPet.features.toLowerCase()
+      .split(/[,、。\s]+/)
+      .filter(f => f.trim() !== '');
+    
+    if (missingFeatures.length === 0 || foundFeatures.length === 0) {
+      return [];
+    }
+    
+    return missingFeatures
+      .filter(mf => mf && mf.length > 0)
+      .filter(mf => 
+        foundFeatures.some(ff => ff && ff.length > 0 && (ff.includes(mf) || mf.includes(ff)))
+      );
   }
 
   /**

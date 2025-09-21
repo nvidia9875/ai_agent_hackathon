@@ -74,6 +74,10 @@ interface ChatRoom {
   lastMessageTime?: Timestamp;
   unreadCount?: number;
   createdAt: Timestamp;
+  petCondition?: string;
+  canKeepTemporarily?: boolean;
+  keepUntilDate?: string;
+  currentLocation?: string;
 }
 
 interface ChatUser {
@@ -92,6 +96,12 @@ export default function ChatPage() {
   const [sending, setSending] = useState(false);
   const [otherUser, setOtherUser] = useState<ChatUser | null>(null);
   const [petImage, setPetImage] = useState<string | null>(null);
+  const [petStatus, setPetStatus] = useState<{
+    condition?: string;
+    canKeepTemporarily?: boolean;
+    keepUntilDate?: string;
+    currentLocation?: string;
+  }>({});
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [resolving, setResolving] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -166,8 +176,43 @@ export default function ChatPage() {
   useEffect(() => {
     if (!selectedRoom) return;
     
-    // 選択されたルームのペット画像を設定
+    // 選択されたルームのペット画像とステータス情報を取得
     setPetImage(selectedRoom.petImage || null);
+    
+    // 発見ペット情報を取得してステータス情報を設定
+    const fetchPetStatus = async () => {
+      try {
+        // まず、マッチング情報から発見ペットIDを取得
+        const matchesQuery = query(
+          collection(db, 'matches'),
+          where('missingPetId', '==', selectedRoom.petId)
+        );
+        const matchesSnapshot = await getDocs(matchesQuery);
+        
+        if (!matchesSnapshot.empty) {
+          const matchData = matchesSnapshot.docs[0].data();
+          const foundPetId = matchData.foundPetId;
+          
+          if (foundPetId) {
+            // 発見ペット情報を取得
+            const foundPetDoc = await getDoc(doc(db, 'foundPets', foundPetId));
+            if (foundPetDoc.exists()) {
+              const foundPetData = foundPetDoc.data();
+              setPetStatus({
+                condition: foundPetData.petCondition,
+                canKeepTemporarily: foundPetData.canKeepTemporarily,
+                keepUntilDate: foundPetData.keepUntilDate,
+                currentLocation: foundPetData.currentLocation
+              });
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching pet status:', error);
+      }
+    };
+    
+    fetchPetStatus();
     
     // 該当ルームの通知をリセット
     markRoomAsRead(selectedRoom.id);
@@ -476,8 +521,8 @@ export default function ChatPage() {
                 borderBottom: '1px solid',
                 borderColor: 'divider',
                 display: 'flex',
-                alignItems: 'center',
-                gap: 2,
+                flexDirection: 'column',
+                gap: 1,
                 bgcolor: '#2C3E5B',
                 color: 'white',
                 flexShrink: 0,
@@ -485,41 +530,98 @@ export default function ChatPage() {
                 zIndex: 1
               }}
             >
-              <Avatar 
-                src={petImage || undefined}
-                sx={{ 
-                  bgcolor: 'white',
-                  width: 48,
-                  height: 48
-                }}
-              >
-                {!petImage && <PetsIcon sx={{ color: '#2C3E5B' }} />}
-              </Avatar>
-              <Box sx={{ flex: 1 }}>
-                <Typography variant="subtitle1" fontWeight="600" sx={{ color: 'white' }}>
-                  {otherUser?.nickname}
-                </Typography>
-                <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                  {selectedRoom.petName}について
-                </Typography>
-              </Box>
-              {/* 解決したボタン（飼い主のみ表示） */}
-              {selectedRoom && selectedRoom.ownerId === user?.uid && (
-                <Button
-                  variant="contained"
-                  color="success"
-                  startIcon={<CheckCircleIcon />}
-                  onClick={() => setResolveModalOpen(true)}
-                  sx={{
-                    bgcolor: '#4CAF50',
-                    '&:hover': {
-                      bgcolor: '#45a049'
-                    },
-                    fontWeight: 'bold'
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Avatar 
+                  src={petImage || undefined}
+                  sx={{ 
+                    bgcolor: 'white',
+                    width: 48,
+                    height: 48
                   }}
                 >
-                  解決した
-                </Button>
+                  {!petImage && <PetsIcon sx={{ color: '#2C3E5B' }} />}
+                </Avatar>
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle1" fontWeight="600" sx={{ color: 'white' }}>
+                    {otherUser?.nickname}
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                    {selectedRoom.petName}について
+                  </Typography>
+                </Box>
+                {/* 解決したボタン（飼い主のみ表示） */}
+                {selectedRoom && selectedRoom.ownerId === user?.uid && (
+                  <Button
+                    variant="contained"
+                    color="success"
+                    startIcon={<CheckCircleIcon />}
+                    onClick={() => setResolveModalOpen(true)}
+                    sx={{
+                      bgcolor: '#4CAF50',
+                      '&:hover': {
+                        bgcolor: '#45a049'
+                      },
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    解決した
+                  </Button>
+                )}
+              </Box>
+              
+              {/* ペットのステータス情報 */}
+              {(petStatus.condition || petStatus.currentLocation) && (
+                <Box sx={{ 
+                  display: 'flex', 
+                  gap: 1, 
+                  flexWrap: 'wrap',
+                  px: 1
+                }}>
+                  {petStatus.condition && (
+                    <Chip
+                      size="small"
+                      icon={<CircleIcon sx={{ fontSize: '12px !important' }} />}
+                      label={`状態: ${petStatus.condition}`}
+                      sx={{ 
+                        bgcolor: petStatus.condition === '良好（元気そう）' ? 'success.main' : 
+                                 petStatus.condition === '怪我をしている' ? 'error.main' : 
+                                 petStatus.condition === '弱っている' ? 'warning.main' : 
+                                 petStatus.condition === '普通' ? 'info.main' : 
+                                 petStatus.condition === '不明' ? 'grey.600' : 'grey.600',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        height: 24,
+                        '& .MuiChip-icon': {
+                          color: 'white',
+                        }
+                      }}
+                    />
+                  )}
+                  {petStatus.currentLocation && (
+                    <Chip
+                      size="small"
+                      label={`現在: ${petStatus.currentLocation}`}
+                      sx={{ 
+                        bgcolor: 'rgba(255, 255, 255, 0.2)',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        height: 24
+                      }}
+                    />
+                  )}
+                  {petStatus.canKeepTemporarily && (
+                    <Chip
+                      size="small"
+                      label={petStatus.keepUntilDate ? `保護可能: ${petStatus.keepUntilDate}まで` : '一時保護可能'}
+                      sx={{ 
+                        bgcolor: 'info.main',
+                        color: 'white',
+                        fontSize: '0.75rem',
+                        height: 24
+                      }}
+                    />
+                  )}
+                </Box>
               )}
             </Paper>
 

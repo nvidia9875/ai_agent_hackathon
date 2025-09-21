@@ -39,6 +39,7 @@ import { loadGoogleMaps, isGoogleMapsLoaded } from '@/lib/google-maps-loader';
 import { BehaviorPredictor } from '@/lib/services/behavior-predictor';
 import { WeatherService } from '@/lib/services/weather-service';
 import { GeocodingService } from '@/lib/services/geocoding-service';
+import { enhancedHeatmapGenerator } from '@/lib/services/enhanced-heatmap-generator';
 import { getUserPets, getAllMissingPets, getMatchedPets } from '@/lib/firestore/pets';
 import type { PetInfo } from '@/types/pet';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -95,6 +96,7 @@ export default function IntegratedBehaviorMap() {
   const circlesRef = useRef<any[]>([]);
   const infoWindowRef = useRef<any>(null);
   const pathLineRef = useRef<any>(null);
+  const [currentZoom, setCurrentZoom] = useState<number>(14);
 
   // Get current user from auth context
   const { user } = useAuth();
@@ -372,11 +374,15 @@ export default function IntegratedBehaviorMap() {
     }
   };
 
-  const clearPredictionElements = () => {
+  const clearHeatmap = () => {
     if (heatmapLayer.current) {
       heatmapLayer.current.setMap(null);
       heatmapLayer.current = null;
     }
+  };
+  
+  const clearPredictionElements = () => {
+    clearHeatmap();
 
     if (pathLineRef.current) {
       pathLineRef.current.setMap(null);
@@ -1171,21 +1177,6 @@ export default function IntegratedBehaviorMap() {
           }
         }}
       >
-        <DialogTitle sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          justifyContent: 'space-between',
-          borderBottom: 1,
-          borderColor: 'divider'
-        }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <MatchingIcon color="primary" />
-            <Typography variant="h6">AI Visual Detective マッチング結果</Typography>
-          </Box>
-          <IconButton onClick={() => setShowMatchingModal(false)}>
-            <CloseIcon />
-          </IconButton>
-        </DialogTitle>
         <DialogContent sx={{ p: 0, overflow: 'auto' }}>
           <PetMatchingCard />
         </DialogContent>

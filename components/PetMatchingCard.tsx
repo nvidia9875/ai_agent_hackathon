@@ -110,6 +110,10 @@ interface MatchResult {
     finderPhone: string;
     finderEmail?: string;
     imageUrls: string[];
+    petCondition?: string;
+    canKeepTemporarily?: boolean;
+    keepUntilDate?: string;
+    currentLocation?: string;
   };
   createdAt: Date | { seconds: number; nanoseconds: number };
   status?: string;
@@ -385,7 +389,7 @@ export default function PetMatchingCard() {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <AutoAwesomeIcon color="primary" />
             <Typography variant="h5" fontWeight="bold">
-              AI Visual Detective マッチング
+              AI Visual Detective マッチング結果
             </Typography>
             <Chip 
               label={`${matches.length}件`} 
@@ -1042,6 +1046,34 @@ export default function PetMatchingCard() {
                     👤 連絡先情報
                   </Typography>
                   
+                  {/* ペット状態情報 */}
+                  {selectedMatch.foundPet?.petCondition && (
+                    <Alert 
+                      severity={
+                        selectedMatch.foundPet.petCondition === '良好（元気そう）' ? 'success' : 
+                        selectedMatch.foundPet.petCondition === '怪我をしている' ? 'error' : 
+                        selectedMatch.foundPet.petCondition === '弱っている' ? 'warning' : 
+                        selectedMatch.foundPet.petCondition === '普通' ? 'info' : 'info'
+                      } 
+                      sx={{ mb: 2 }}
+                    >
+                      <Typography variant="subtitle2" fontWeight="bold">
+                        ペットの現在の状態: {selectedMatch.foundPet.petCondition}
+                      </Typography>
+                      {selectedMatch.foundPet.currentLocation && (
+                        <Typography variant="caption" display="block" sx={{ mt: 1 }}>
+                          現在の場所: {selectedMatch.foundPet.currentLocation}
+                        </Typography>
+                      )}
+                      {selectedMatch.foundPet.canKeepTemporarily && (
+                        <Typography variant="caption" display="block">
+                          発見者による一時保護: 可能
+                          {selectedMatch.foundPet.keepUntilDate && ` (${selectedMatch.foundPet.keepUntilDate}まで)`}
+                        </Typography>
+                      )}
+                    </Alert>
+                  )}
+                  
                   {/* チャット開始セクション */}
                   <Box sx={{ mb: 2, p: 3, bgcolor: 'primary.50', borderRadius: 2, textAlign: 'center' }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ mb: 2 }}>
@@ -1102,6 +1134,23 @@ export default function PetMatchingCard() {
                           )}
                           {selectedMatch.foundPet?.currentLocation && (
                             <Typography variant="body2">🏠 保護場所: {selectedMatch.foundPet.currentLocation}</Typography>
+                          )}
+                          {selectedMatch.foundPet?.petCondition && (
+                            <Typography variant="body2" sx={{ 
+                              fontWeight: 'bold',
+                              color: selectedMatch.foundPet.petCondition === '良好（元気そう）' ? 'success.main' : 
+                                     selectedMatch.foundPet.petCondition === '怪我をしている' ? 'error.main' : 
+                                     selectedMatch.foundPet.petCondition === '弱っている' ? 'warning.main' : 
+                                     selectedMatch.foundPet.petCondition === '普通' ? 'info.main' : 'text.secondary'
+                            }}>
+                              🩺 状態: {selectedMatch.foundPet.petCondition}
+                            </Typography>
+                          )}
+                          {selectedMatch.foundPet?.canKeepTemporarily && (
+                            <Typography variant="body2" color="info.main">
+                              ✅ 一時保護可能
+                              {selectedMatch.foundPet.keepUntilDate && ` (${selectedMatch.foundPet.keepUntilDate}まで)`}
+                            </Typography>
                           )}
                         </Stack>
                       </Grid>

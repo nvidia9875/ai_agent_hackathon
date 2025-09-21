@@ -36,6 +36,8 @@ interface MatchResult {
   matchDetails: {
     type: boolean;
     size: boolean;
+    breed?: boolean;
+    microchip?: boolean;
     color: string[];
     features: string[];
   };
@@ -152,12 +154,13 @@ export default function PetMatchResults({ foundPetId, onContactOwner }: PetMatch
               elevation={match.matchScore >= 75 ? 8 : 3}
               sx={{ 
                 borderLeft: match.matchScore >= 75 ? '4px solid' : 'none',
-                borderLeftColor: 'success.main'
+                borderLeftColor: 'success.main',
+                overflow: 'visible'
               }}
             >
               <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 2, flexWrap: 'wrap', gap: 2 }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap' }}>
                     <Badge
                       badgeContent={`${match.matchScore}%`}
                       color={getMatchBadgeColor(match.matchScore)}
@@ -180,6 +183,7 @@ export default function PetMatchResults({ foundPetId, onContactOwner }: PetMatch
                       label={getActionText(match.recommendedAction)}
                       color={getMatchBadgeColor(match.matchScore)}
                       size="small"
+                      sx={{ flexShrink: 0 }}
                     />
                   </Box>
 
@@ -295,18 +299,39 @@ export default function PetMatchResults({ foundPetId, onContactOwner }: PetMatch
                       </Typography>
                       
                       <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mt: 1 }}>
-                        {match.matchDetails.type && (
+                        {match.matchDetails.microchip === true && (
+                          <Chip 
+                            label="マイクロチップ番号が完全一致" 
+                            size="small" 
+                            color="error"
+                            sx={{ fontWeight: 'bold' }}
+                          />
+                        )}
+                        {match.matchDetails.type === true && (
                           <Chip label="種類が一致" size="small" color="success" />
                         )}
-                        {match.matchDetails.size && (
+                        {match.matchDetails.breed === true && (
+                          <Chip label="犬種が一致" size="small" color="success" />
+                        )}
+                        {match.matchDetails.size === true && (
                           <Chip label="サイズが一致" size="small" color="success" />
                         )}
-                        {match.matchDetails.color.map((color, i) => (
-                          <Chip key={i} label={`色: ${color}`} size="small" color="info" />
-                        ))}
-                        {match.matchDetails.features.map((feature, i) => (
-                          <Chip key={i} label={feature} size="small" variant="outlined" />
-                        ))}
+                        {(() => {
+                          const validColors = match.matchDetails.color?.filter?.(
+                            (color: any) => color && typeof color === 'string' && color.trim().length > 0
+                          ) || [];
+                          return validColors.map((color: string, i: number) => (
+                            <Chip key={`color-${i}`} label={`色: ${color}`} size="small" color="info" />
+                          ));
+                        })()}
+                        {(() => {
+                          const validFeatures = match.matchDetails.features?.filter?.(
+                            (feature: any) => feature && typeof feature === 'string' && feature.trim().length > 0
+                          ) || [];
+                          return validFeatures.map((feature: string, i: number) => (
+                            <Chip key={`feature-${i}`} label={feature.trim()} size="small" variant="outlined" />
+                          ));
+                        })()}
                       </Box>
                     </Box>
                   </Grid>

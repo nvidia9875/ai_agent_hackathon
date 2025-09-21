@@ -56,6 +56,8 @@ export interface PetMatchResult {
   matchDetails: {
     type: boolean;
     size: boolean;
+    breed?: boolean; // 犬種の一致
+    microchip?: boolean; // マイクロチップの一致
     color: string[]; // マッチした色
     features: string[]; // マッチした特徴
   };

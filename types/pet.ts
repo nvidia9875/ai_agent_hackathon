@@ -56,6 +56,7 @@ export interface FoundPetInfo {
   features: string;
   hasCollar: boolean;
   collarDescription?: string;
+  microchipNumber?: string;
   foundDate: string;
   foundTime: string;
   foundAddress: string;
