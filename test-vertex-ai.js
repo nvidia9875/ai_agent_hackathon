@@ -9,13 +9,13 @@ async function testVertexAI() {
   console.log('- PROJECT_ID:', process.env.GOOGLE_CLOUD_PROJECT_ID || 'NOT SET');
   console.log('- CREDENTIALS:', process.env.GOOGLE_APPLICATION_CREDENTIALS || 'NOT SET');
   console.log('- LOCATION:', process.env.VERTEX_AI_LOCATION || 'us-central1');
-  console.log('- MODEL_ID:', process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002');
+  console.log('- MODEL_ID:', process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash');
   console.log('');
   
   try {
     const projectId = process.env.GOOGLE_CLOUD_PROJECT_ID || 'calm-seeker-471513-t3';
     const location = process.env.VERTEX_AI_LOCATION || 'us-central1';
-    const modelId = process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002';
+    const modelId = process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash';
     
     console.log('Initializing Vertex AI client...');
     const vertexAI = new VertexAI({
@@ -60,7 +60,7 @@ async function testVertexAI() {
       console.error('2. Verify GOOGLE_APPLICATION_CREDENTIALS path');
     } else if (error.message.includes('404')) {
       console.error('\n🔧 Solution:');
-      console.error('1. Check model ID:', process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002');
+      console.error('1. Check model ID:', process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash');
       console.error('2. Check location:', process.env.VERTEX_AI_LOCATION || 'us-central1');
     }
     

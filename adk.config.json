@@ -6,7 +6,7 @@
       "id": "search-coordinator-adk",
       "name": "捜索統括エージェント",
       "description": "迷子ペットの捜索戦略を立案し、他のエージェントと連携",
-      "model": "gemini-1.5-pro",
+      "model": "gemini-2.5-pro",
       "version": "1.0.0",
       "capabilities": [
         "search_area_analysis",
@@ -35,7 +35,7 @@
       "id": "behavior-predictor-adk",
       "name": "ペット行動予測エージェント",
       "description": "ペットの行動パターンを分析し移動先を予測",
-      "model": "gemini-1.5-pro",
+      "model": "gemini-2.5-pro",
       "version": "1.0.0",
       "capabilities": [
         "behavior_analysis",

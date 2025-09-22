@@ -1,17 +1,27 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getVertexAIClient } from '@/lib/adk/vertex-ai-client';
 
-const apiKey = process.env.NEXT_PUBLIC_GEMINI_API_KEY;
-
-if (!apiKey) {
-  throw new Error('NEXT_PUBLIC_GEMINI_API_KEY is not defined in environment variables');
-}
-
-export const genAI = new GoogleGenerativeAI(apiKey);
-
-export const geminiModel = genAI.getGenerativeModel({ 
-  model: 'gemini-1.5-flash',
-  generationConfig: {
-    temperature: 0.7,
-    maxOutputTokens: 1024,
+// Vertex AI経由でGeminiを使用するためのラッパー
+export const geminiModel = {
+  async generateContent(prompt: string | any[]) {
+    const vertexClient = getVertexAIClient();
+    
+    // 配列の場合は画像を含むマルチモーダルリクエスト
+    if (Array.isArray(prompt)) {
+      const text = await vertexClient.generateContentWithImage(prompt);
+      return {
+        response: {
+          text: () => text,
+        },
+      };
+    }
+    
+    // 文字列の場合は通常のテキストリクエスト
+    const text = await vertexClient.generateContent(prompt);
+    
+    return {
+      response: {
+        text: () => text,
+      },
+    };
   },
-});
+};

@@ -65,7 +65,9 @@ interface DetailedScores {
 interface MatchResult {
   id: string;
   missingPetId: string;
+  missingPetBreed?: string;
   foundPetId: string;
+  foundPetBreed?: string;
   matchScore: number;
   visualSimilarity: number;
   locationProximity: number;
@@ -83,6 +85,7 @@ interface MatchResult {
     id: string;
     name: string;
     type: string;
+    breed?: string;
     size: string;
     weight?: number;
     color?: string;
@@ -104,6 +107,7 @@ interface MatchResult {
   foundPet?: {
     id: string;
     petType: string;
+    petBreed?: string;
     size: string;
     weight?: number;
     color: string;
@@ -421,23 +425,22 @@ export default function PetMatchingCard() {
                 <Card sx={{ 
                   display: 'flex',
                   position: 'relative',
+                  overflow: 'visible',
                   '&:hover': { boxShadow: 3 },
                   borderLeft: match.matchScore >= 75 ? '4px solid' : 'none',
                   borderLeftColor: 'success.main'
                 }}>
                   {match.matchScore >= 75 && (
-                    <Badge
-                      badgeContent="高確率"
+                    <Chip
+                      label="高確率"
                       color="error"
+                      size="small"
                       sx={{
                         position: 'absolute',
-                        top: 16,
-                        right: 16,
-                        '& .MuiBadge-badge': {
-                          fontSize: '0.75rem',
-                          height: 24,
-                          minWidth: 60
-                        }
+                        top: 12,
+                        right: 12,
+                        zIndex: 1,
+                        fontWeight: 'bold'
                       }}
                     />
                   )}
@@ -487,7 +490,18 @@ export default function PetMatchingCard() {
                             <LocationIcon sx={{ fontSize: 14 }} /> 距離
                           </Typography>
                           <Typography variant="h6" fontWeight="bold">
-                            {match.locationProximity || 0}%
+                            {(() => {
+                              // detailedScoresから場所スコアを取得
+                              const locationScore = match.detailedScores?.scores?.location?.score;
+                              if (locationScore !== undefined && locationScore > 0) {
+                                return `${locationScore}%`;
+                              }
+                              // フォールバック: locationProximityを使用
+                              if (match.locationProximity > 0) {
+                                return `${match.locationProximity}%`;
+                              }
+                              return '-';
+                            })()}
                           </Typography>
                         </Box>
                         <Box sx={{ textAlign: 'center' }}>
@@ -542,7 +556,21 @@ export default function PetMatchingCard() {
                             {match.missingPet?.name || match.missingPetName || '名前不明'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {match.missingPet?.type || match.missingPetType || '種類不明'} • {match.missingPet?.size || 'サイズ不明'}
+                            {(() => {
+                              const petType = match.missingPet?.type || match.missingPetType;
+                              const petBreed = match.missingPet?.breed || match.missingPetBreed;
+                              
+                              let displayType = '種類不明';
+                              if (petType === '犬' && petBreed) {
+                                displayType = petBreed; // 犬種を表示
+                              } else if (petType === '猫' && petBreed) {
+                                displayType = petBreed; // 猫の品種を表示
+                              } else if (petType) {
+                                displayType = petType; // その他の動物はそのまま表示
+                              }
+                              
+                              return displayType;
+                            })()} • {match.missingPet?.size || 'サイズ不明'}
                             {match.missingPet?.weight && ` • ${match.missingPet.weight}kg`}
                           </Typography>
                           {match.missingPet?.lastSeen && (
@@ -596,7 +624,21 @@ export default function PetMatchingCard() {
                             {match.foundPet?.petType || match.foundPetType || '種類不明'}
                           </Typography>
                           <Typography variant="body2" color="text.secondary">
-                            {match.foundPet?.size || 'サイズ不明'} • {match.foundPet?.color || '色不明'}
+                            {(() => {
+                              const petType = match.foundPet?.petType || match.foundPetType;
+                              const petBreed = match.foundPet?.petBreed || match.foundPetBreed;
+                              
+                              let displayType = '種類不明';
+                              if (petType === '犬' && petBreed) {
+                                displayType = petBreed; // 犬種を表示
+                              } else if (petType === '猫' && petBreed) {
+                                displayType = petBreed; // 猫の品種を表示
+                              } else if (petType) {
+                                displayType = petType; // その他の動物はそのまま表示
+                              }
+                              
+                              return displayType;
+                            })()} • {match.foundPet?.size || 'サイズ不明'}
                             {match.foundPet?.weight && ` • ${match.foundPet.weight}kg`}
                           </Typography>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
@@ -773,14 +815,29 @@ export default function PetMatchingCard() {
                       <Typography variant="caption" color="text.secondary">
                         場所の近さ
                       </Typography>
-                      <LinearProgress
-                        variant="determinate"
-                        value={selectedMatch.locationProximity || 0}
-                        sx={{ mt: 0.5, mb: 0.5 }}
-                      />
-                      <Typography variant="body2">
-                        {selectedMatch.locationProximity || 0}%
-                      </Typography>
+                      {(() => {
+                        // detailedScoresから場所スコアを優先的に使用
+                        const locationScore = selectedMatch.detailedScores?.scores?.location?.score || selectedMatch.locationProximity || 0;
+                        if (locationScore > 0) {
+                          return (
+                            <>
+                              <LinearProgress
+                                variant="determinate"
+                                value={locationScore}
+                                sx={{ mt: 0.5, mb: 0.5 }}
+                              />
+                              <Typography variant="body2">
+                                {locationScore}%
+                              </Typography>
+                            </>
+                          );
+                        }
+                        return (
+                          <Typography variant="body2" sx={{ mt: 1, color: 'text.secondary' }}>
+                            データなし
+                          </Typography>
+                        );
+                      })()}
                     </Box>
                   </Grid>
                   <Grid item xs={4}>

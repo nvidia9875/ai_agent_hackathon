@@ -251,17 +251,57 @@
   },
   "vector_search": {
     "index": {
-      "name": "pet-features-index",
-      "dimensions": 1024,
-      "approximate_neighbors_count": 150,
-      "leaf_node_embedding_count": 500,
-      "leaf_nodes_to_search_percent": 10,
-      "distance_measure_type": "COSINE_DISTANCE"
+      "name": "pet-features-enhanced-index-v2",
+      "dimensions": 2048,
+      "approximate_neighbors_count": 300,
+      "leaf_node_embedding_count": 1000,
+      "leaf_nodes_to_search_percent": 15,
+      "distance_measure_type": "DOT_PRODUCT_DISTANCE",
+      "feature_norm_type": "UNIT_L2_NORM",
+      "algorithm_config": {
+        "tree_ah_config": {
+          "leaf_node_embedding_count": 1000,
+          "leaf_nodes_to_search_percent": 15
+        }
+      },
+      "shard_size": "SHARD_SIZE_MEDIUM",
+      "index_update_method": "STREAM_UPDATE"
     },
     "endpoint": {
-      "machine_type": "n1-standard-2",
-      "min_replica_count": 1,
-      "max_replica_count": 2
+      "machine_type": "n1-standard-4",
+      "min_replica_count": 2,
+      "max_replica_count": 5,
+      "accelerator": {
+        "type": "NVIDIA_TESLA_T4",
+        "count": 1
+      },
+      "enable_private_service_connect": true,
+      "public_endpoint_enabled": false
+    },
+    "advanced_features": {
+      "multi_modal_embeddings": {
+        "enabled": true,
+        "modalities": ["visual", "textual", "spatiotemporal"],
+        "fusion_method": "attention_based"
+      },
+      "reranking": {
+        "enabled": true,
+        "method": "learned_metric",
+        "top_k_multiplier": 3,
+        "min_confidence_threshold": 0.7
+      },
+      "filtering": {
+        "enabled": true,
+        "pre_filter": true,
+        "post_filter": true,
+        "supported_filters": ["location", "time_range", "category", "confidence"]
+      },
+      "optimization": {
+        "batch_size": 100,
+        "prefetch_size": 20,
+        "cache_ttl_seconds": 3600,
+        "compression_enabled": true
+      }
     }
   },
   "monitoring": {

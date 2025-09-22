@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
       projectId: process.env.GOOGLE_CLOUD_PROJECT_ID,
       credentials: process.env.GOOGLE_APPLICATION_CREDENTIALS,
       location: process.env.VERTEX_AI_LOCATION || 'us-central1',
-      modelId: process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002',
+      modelId: process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash',
     };
     
     console.log('[ADK Test] Configuration:', {

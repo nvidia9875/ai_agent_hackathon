@@ -1,5 +1,6 @@
 import vision from '@google-cloud/vision';
 import { VisualAnalysisResult } from '@/types/agents';
+import { geminiModel } from '@/lib/config/gemini';
 
 export class VisionAIClient {
   private client: vision.ImageAnnotatorClient;
@@ -41,16 +42,21 @@ export class VisionAIClient {
       const [result] = await Promise.race([analysisPromise, timeoutPromise]) as any;
       console.log('Vision AI analysis completed successfully');
 
-      // ペットタイプの判定
-      const labels = result.labelAnnotations || [];
-      const petType = this.detectPetType(labels);
-      const breed = this.detectBreed(labels, petType);
+      // Gemini APIを使用して画像から詳細な色と特徴を抽出
+      const geminiAnalysis = await this.analyzeWithGemini(imageBuffer);
+      console.log('Gemini analysis result:', geminiAnalysis);
 
-      // 色情報の抽出
-      const colors = this.extractColors(result.imagePropertiesAnnotation);
+      // ペットタイプの判定（Vision APIとGeminiの結果を統合）
+      const labels = result.labelAnnotations || [];
+      const petType = geminiAnalysis.petType || this.detectPetType(labels);
+      const breed = geminiAnalysis.breed || this.detectBreed(labels, petType);
+
+      // 色情報の抽出（Geminiの結果を優先）
+      const visionColors = this.extractColors(result.imagePropertiesAnnotation);
+      const colors = geminiAnalysis.colors?.length > 0 ? geminiAnalysis.colors : visionColors;
 
       // サイズの推定
-      const size = this.estimateSize(result.localizedObjectAnnotations);
+      const size = geminiAnalysis.size || this.estimateSize(result.localizedObjectAnnotations);
 
       // 画像品質の評価
       const imageQuality = this.assessImageQuality(result);
@@ -66,7 +72,9 @@ export class VisionAIClient {
         confidence: this.calculateConfidence(result),
         features,
         imageQuality,
-        description: this.generateDescription(petType, breed, colors, size),
+        description: geminiAnalysis.description || this.generateDescription(petType, breed, colors, size),
+        physicalFeatures: geminiAnalysis.physicalFeatures, // 外見の特徴
+        distinguishingMarks: geminiAnalysis.distinguishingMarks, // 識別可能な特徴
       };
     } catch (error) {
       console.error('Vision AI analysis error:', error);
@@ -92,8 +100,22 @@ export class VisionAIClient {
   }
 
   private detectPetType(labels: any[]): 'dog' | 'cat' | 'other' {
-    const dogScore = labels.find(l => l.description.toLowerCase().includes('dog'))?.score || 0;
-    const catScore = labels.find(l => l.description.toLowerCase().includes('cat'))?.score || 0;
+    // 英語と日本語の両方をチェック
+    const dogKeywords = ['dog', 'puppy', 'canine', '犬', 'イヌ', 'ワンちゃん', 'わんこ'];
+    const catKeywords = ['cat', 'kitten', 'feline', '猫', 'ネコ', 'にゃんこ'];
+    
+    let dogScore = 0;
+    let catScore = 0;
+    
+    labels.forEach(label => {
+      const desc = label.description.toLowerCase();
+      if (dogKeywords.some(keyword => desc.includes(keyword))) {
+        dogScore = Math.max(dogScore, label.score);
+      }
+      if (catKeywords.some(keyword => desc.includes(keyword))) {
+        catScore = Math.max(catScore, label.score);
+      }
+    });
     
     if (dogScore > 0.7) return 'dog';
     if (catScore > 0.7) return 'cat';
@@ -102,13 +124,26 @@ export class VisionAIClient {
 
   private detectBreed(labels: any[], petType: string): string | undefined {
     if (petType === 'dog') {
-      const dogBreeds = ['labrador', 'golden retriever', 'bulldog', 'poodle', 'beagle'];
+      const dogBreeds = [
+        // 英語
+        'labrador', 'golden retriever', 'bulldog', 'poodle', 'beagle', 'chihuahua', 'dachshund',
+        'shiba inu', 'akita', 'pomeranian', 'corgi', 'terrier',
+        // 日本語
+        '柴犬', '秋田犬', 'トイプードル', 'チワワ', 'ポメラニアン', 'コーギー',
+        'ラブラドール', 'ゴールデンレトリーバー', 'ビーグル', 'ダックスフンド'
+      ];
       for (const breed of dogBreeds) {
         const match = labels.find(l => l.description.toLowerCase().includes(breed));
         if (match) return match.description;
       }
     } else if (petType === 'cat') {
-      const catBreeds = ['persian', 'siamese', 'maine coon', 'british shorthair'];
+      const catBreeds = [
+        // 英語
+        'persian', 'siamese', 'maine coon', 'british shorthair', 'scottish fold', 'ragdoll',
+        // 日本語  
+        'ペルシャ', 'シャム', 'メインクーン', 'スコティッシュフォールド', 'ラグドール',
+        'アメリカンショートヘア', 'ロシアンブルー'
+      ];
       for (const breed of catBreeds) {
         const match = labels.find(l => l.description.toLowerCase().includes(breed));
         if (match) return match.description;
@@ -131,13 +166,15 @@ export class VisionAIClient {
   }
 
   private rgbToColorName(r: number, g: number, b: number): string {
-    // 簡略化されたカラー判定
-    if (r > 200 && g > 200 && b > 200) return 'white';
-    if (r < 50 && g < 50 && b < 50) return 'black';
-    if (r > 150 && g < 100 && b < 100) return 'brown';
-    if (r > 200 && g > 150 && b < 100) return 'golden';
-    if (r < 100 && g < 100 && b < 100) return 'gray';
-    return 'mixed';
+    // 日本語の色名を返す
+    if (r > 200 && g > 200 && b > 200) return '白';
+    if (r < 50 && g < 50 && b < 50) return '黒';
+    if (r > 150 && g < 100 && b < 100) return '茶色';
+    if (r > 200 && g > 150 && b < 100) return '金色';
+    if (r < 100 && g < 100 && b < 100) return '灰色';
+    if (r > 200 && g > 200 && b < 150) return 'クリーム';
+    if (r > 180 && g > 120 && b < 100) return 'ベージュ';
+    return '混合色';
   }
 
   private estimateSize(objects: any[]): 'small' | 'medium' | 'large' {
@@ -233,6 +270,73 @@ export class VisionAIClient {
     if (hasColors) confidence += 0.2;
     
     return confidence;
+  }
+
+  /**
+   * Gemini APIを使用して画像から詳細な情報を抽出
+   */
+  private async analyzeWithGemini(imageBuffer: Buffer): Promise<any> {
+    try {
+      const base64Image = imageBuffer.toString('base64');
+      
+      const prompt = `
+この画像に写っているペットを詳しく分析してください。以下の情報をJSON形式で返してください：
+
+{
+  "petType": "犬、猫、その他から選択",
+  "breed": "犬種または猫種（わかる場合）",
+  "colors": ["主要な毛色のリスト（例：茶色、白、黒など）"],
+  "colorPattern": "色のパターン（例：単色、二色、三毛、ぶち、縞模様など）",
+  "size": "小型、中型、大型から選択",
+  "physicalFeatures": "外見の特徴（耳の形、尾の長さ、体型など）",
+  "distinguishingMarks": "識別可能な特徴（模様、傷跡、特徴的な部位など）",
+  "estimatedAge": "推定年齢（子犬/子猫、若い、成犬/成猫、老犬/老猫）",
+  "description": "ペットの詳細な説明（30文字以内）"
+}
+
+注意事項：
+- 毛色は日本語で記述してください（茶色、白、黒、グレー、クリーム色など）
+- 複数の色がある場合は全て列挙してください
+- 特徴的な模様や配色パターンがあれば詳しく記述してください
+- 不明な項目は"不明"と記述してください`;
+
+      const result = await geminiModel.generateContent([
+        {
+          inlineData: {
+            mimeType: 'image/jpeg',
+            data: base64Image
+          }
+        },
+        { text: prompt }
+      ]);
+
+      const response = await result.response;
+      const text = response.text();
+      
+      // JSONを抽出
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const analysisResult = JSON.parse(jsonMatch[0]);
+        
+        // petTypeを英語に変換
+        if (analysisResult.petType === '犬') analysisResult.petType = 'dog';
+        else if (analysisResult.petType === '猫') analysisResult.petType = 'cat';
+        else analysisResult.petType = 'other';
+        
+        // sizeを英語に変換
+        if (analysisResult.size === '小型') analysisResult.size = 'small';
+        else if (analysisResult.size === '中型') analysisResult.size = 'medium';
+        else if (analysisResult.size === '大型') analysisResult.size = 'large';
+        
+        console.log('Gemini extracted features:', analysisResult);
+        return analysisResult;
+      }
+      
+      return {};
+    } catch (error) {
+      console.error('Gemini analysis error:', error);
+      return {};
+    }
   }
 
   private generateDescription(

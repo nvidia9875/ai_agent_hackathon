@@ -8,7 +8,7 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
       agentId: 'behavior-predictor-adk',
       displayName: 'ペット行動予測エージェント',
       description: '迷子ペットの行動パターンを分析し、次の移動先を予測',
-      model: 'gemini-1.5-pro',
+      model: 'gemini-2.5-pro',
       systemPrompt: `あなたはペット行動学の専門家です。
         以下の分析を行います：
         1. ペットの種類と性格に基づく行動予測

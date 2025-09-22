@@ -8,7 +8,7 @@ export class ADKSearchCoordinatorAgent extends ADKAgent {
       agentId: 'search-coordinator-adk',
       displayName: '捜索統括エージェント',
       description: '迷子ペットの捜索戦略を立案し、他のエージェントと連携して効率的な捜索を実施',
-      model: 'gemini-1.5-pro',
+      model: 'gemini-2.5-pro',
       systemPrompt: `あなたは迷子ペット捜索の専門家です。
         以下の役割を担います：
         1. 捜索エリアの分析と優先順位付け

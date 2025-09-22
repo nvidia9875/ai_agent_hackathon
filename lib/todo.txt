@@ -112,3 +112,59 @@
 ・上部ヘッダーのエージェント待機中の表示は動作していないので削除
 サイドカラムの設定も現状使用できないので削除していいです
 agent-dashboardの行動予測エージェントの予測精度が110%になっています、100%を超しているので計算間違っているから修正
+
+
+
+以下のエラー発生しているので、参考コードを元にgemini-2.5-flashかproのモデルに変更、これ以外のgmeiniのバージョンは使用しないでください。
+必ず2.5にすること
+最新の公式ドキュメントには使用できると書いてあるので問題ないです
+[Vertex AI] Generation failed: Error [ApiError]: {"error":{"code":404,"message":"Publisher Model `projects/calm-seeker-471513-t3/locations/us-central1/publishers/google/models/gemini-1.5-pro-002` was not found or your project does not have access to it. Please ensure you are using a valid model version. For more information, see: https://cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions","status":"NOT_FOUND"}}
+    at async VertexAIClient.generateContent (lib/adk/vertex-ai-client.ts:41:24)
+    at async Object.generateContent (lib/config/gemini.ts:7:18)
+    at async calculateFeatureMatch (app/api/auto-match/route.ts:278:20)
+    at async calculateDetailedScores (app/api/auto-match/route.ts:214:14)
+    at async POST (app/api/auto-match/route.ts:373:36)
+  39 |       console.log('[Vertex AI] Generating content for prompt length:', fullPrompt.length);
+  40 |       
+> 41 |       const response = await this.genAI.models.generateContent({
+     |                        ^
+  42 |         model: this.modelId,
+  43 |         contents: fullPrompt,
+  44 |         generationConfig: { {
+  status: 404
+}
+Error using Gemini for feature matching: Error: Model gemini-1.5-pro-002 not found in us-central1. Please check the model ID and location.
+    at VertexAIClient.generateContent (lib/adk/vertex-ai-client.ts:71:15)
+    at async Object.generateContent (lib/config/gemini.ts:7:18)
+    at async calculateFeatureMatch (app/api/auto-match/route.ts:278:20)
+    at async calculateDetailedScores (app/api/auto-match/route.ts:214:14)
+    at async POST (app/api/auto-match/route.ts:373:36)
+  69 |       
+  70 |       if (error.message?.includes('404')) {
+> 71 |         throw new Error(
+     |               ^
+  72 |           `Model ${this.modelId} not found in ${this.location}. ` +
+  73 |           'Please check the model ID and location.'
+  74 |         );
+
+  import { GoogleGenAI } from '@google/genai';
+
+// Vertex AI用の設定
+const ai = new GoogleGenAI({
+  vertexai: true,
+  project: 'your-project-id',
+  location: 'global',  // または 'us-central1'
+  apiVersion: 'v1'     // 安定版APIを使用
+});
+
+// モデルを使用してコンテンツを生成
+async function generateContent() {
+  const response = await ai.models.generateContent({
+    model: 'gemini-2.5-flash',
+    contents: 'AIの仕組みを説明してください'
+  });
+  
+  console.log(response.text);
+}
+
+generateContent();

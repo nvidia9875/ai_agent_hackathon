@@ -47,7 +47,7 @@ export abstract class ADKAgent {
       location: this.location,
     });
     
-    const modelName = config.model || process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002';
+    const modelName = config.model || process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash';
     this.model = this.vertexAI.preview.getGenerativeModel({
       model: modelName,
       generationConfig: {
@@ -84,7 +84,7 @@ export abstract class ADKAgent {
       const systemPrompt = this.config.systemPrompt || '';
       const fullPrompt = `${systemPrompt}\n\nContext: ${JSON.stringify(context)}\n\nRequest: ${prompt}`;
       
-      console.log(`[ADK] Calling Vertex AI with model: ${this.config.model || 'gemini-1.5-pro-002'}`);
+      console.log(`[ADK] Calling Vertex AI with model: ${this.config.model || 'gemini-2.5-flash'}`);
       
       const result = await this.model.generateContent(fullPrompt);
       const response = await result.response;
@@ -132,7 +132,7 @@ export abstract class ADKAgent {
     console.log(`[ADK] Initializing Agent: ${this.config.agentId}`);
     console.log(`[ADK] Using project: ${this.projectId}`);
     console.log(`[ADK] Using location: ${this.location}`);
-    console.log(`[ADK] Using model: ${this.config.model || process.env.VERTEX_AI_MODEL_ID || 'gemini-1.5-pro-002'}`);
+    console.log(`[ADK] Using model: ${this.config.model || process.env.VERTEX_AI_MODEL_ID || 'gemini-2.5-flash'}`);
     
     // 認証情報の確認
     if (!process.env.GOOGLE_APPLICATION_CREDENTIALS) {

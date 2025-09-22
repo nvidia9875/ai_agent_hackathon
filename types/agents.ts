@@ -16,6 +16,10 @@ export interface VisualAnalysisResult {
   features: number[]; // 1024次元特徴ベクトル
   imageQuality: number;
   description: string;
+  physicalFeatures?: string; // 外見の特徴（耳の形、尾の長さなど）
+  distinguishingMarks?: string; // 識別可能な特徴（模様、傷跡など）
+  colorPattern?: string; // 色のパターン（単色、二色、縞模様など）
+  estimatedAge?: string; // 推定年齢
 }
 
 export interface BehaviorPrediction {

@@ -143,29 +143,29 @@ export class PetMatcher {
     if (missingAnalysis && foundAnalysis && 
         missingAnalysis.confidence > 0.5 && foundAnalysis.confidence > 0.5) {
       console.log('Using AI-heavy weighting (high confidence)');
-      // 犬種が一致している場合は非常に高い重みを与える
-      const breedWeight = breedScore >= 1.0 ? 30 : breedScore * 20;
+      // 犬種が完全一致の場合は極めて高い重みを与える
+      const breedWeight = breedScore >= 1.0 ? 40 : breedScore * 30;
       weights = {
-        visualSimilarity: visualSimilarity * 0.35,  // 35% (AI優先)
-        typeMatch: typeMatch ? 15 : 0,              // 15%
-        breedMatch: breedWeight,                    // 20-30% (犬種マッチング)
-        sizeMatch: sizeMatch ? 10 : 0,              // 10%
-        colorMatch: colorMatch.length > 0 ? 8 : 0,  // 8%
+        visualSimilarity: visualSimilarity * 0.25,  // 25% (視覚的類似度を減らして犬種に重みを移す)
+        typeMatch: typeMatch ? 10 : 0,              // 10%
+        breedMatch: breedWeight,                    // 30-40% (犬種マッチング最優先)
+        sizeMatch: sizeMatch ? 8 : 0,               // 8%
+        colorMatch: colorMatch.length > 0 ? 7 : 0,  // 7%
         locationProximity: locationProximity * 0.02, // 2%
-        timeDifference: Math.max(0, 10 - timeDifference * 0.1) // 最大10%
+        timeDifference: Math.max(0, 8 - timeDifference * 0.08) // 最大8%
       };
     } else {
       console.log('Using balanced weighting (low AI confidence)');
-      // 犬種が一致している場合は非常に高い重みを与える
-      const breedWeight = breedScore >= 1.0 ? 35 : breedScore * 25;
+      // 犬種が完全一致の場合は極めて高い重みを与える
+      const breedWeight = breedScore >= 1.0 ? 45 : breedScore * 35;
       weights = {
-        visualSimilarity: visualSimilarity * 0.15,  // 15% (低い信頼度)
-        typeMatch: typeMatch ? 25 : 0,              // 25% (基本情報重視)
-        breedMatch: breedWeight,                    // 25-35% (犬種マッチング)
-        sizeMatch: sizeMatch ? 15 : 0,              // 15%
-        colorMatch: colorMatch.length > 0 ? 10 : 0, // 10%
+        visualSimilarity: visualSimilarity * 0.10,  // 10% (低い信頼度)
+        typeMatch: typeMatch ? 20 : 0,              // 20% (基本情報重視)
+        breedMatch: breedWeight,                    // 35-45% (犬種マッチング最優先)
+        sizeMatch: sizeMatch ? 10 : 0,              // 10%
+        colorMatch: colorMatch.length > 0 ? 8 : 0,  // 8%
         locationProximity: locationProximity * 0.02, // 2%
-        timeDifference: Math.max(0, 8 - timeDifference * 0.08) // 最大8%
+        timeDifference: Math.max(0, 5 - timeDifference * 0.05) // 最大5%
       };
     }
     
@@ -268,13 +268,36 @@ export class PetMatcher {
       totalScore += attributeScore * weights.attributes;
     }
 
-    // 3. 色の類似度計算
+    // 3. 色の類似度計算（日本語対応）
     if (analysis1.color.length > 0 && analysis2.color.length > 0) {
-      const commonColors = analysis1.color.filter(c1 => 
-        analysis2.color.some(c2 => c1.toLowerCase() === c2.toLowerCase())
-      );
+      // 色の同義語マッピング
+      const colorSynonyms: { [key: string]: string[] } = {
+        '茶': ['茶色', 'ブラウン', 'brown', '茶'],
+        '白': ['白', 'ホワイト', 'white', '白色'],
+        '黒': ['黒', 'ブラック', 'black', '黒色'],
+        '金': ['金色', 'ゴールデン', 'golden', '金', 'ゴールド'],
+        '灰': ['灰色', 'グレー', 'gray', 'grey', '灰'],
+        'クリーム': ['クリーム', 'cream', 'クリーム色'],
+        'ベージュ': ['ベージュ', 'beige']
+      };
+      
+      // 色の正規化
+      const normalizeColor = (color: string): string => {
+        const lowerColor = color.toLowerCase();
+        for (const [key, synonyms] of Object.entries(colorSynonyms)) {
+          if (synonyms.includes(lowerColor)) {
+            return key;
+          }
+        }
+        return lowerColor;
+      };
+      
+      const colors1 = analysis1.color.map(normalizeColor);
+      const colors2 = analysis2.color.map(normalizeColor);
+      
+      const commonColors = colors1.filter(c1 => colors2.includes(c1));
       const colorSimilarity = (commonColors.length * 2) / 
-        (analysis1.color.length + analysis2.color.length);
+        (colors1.length + colors2.length);
       totalScore += colorSimilarity * weights.colors * 100;
       console.log(`[PetMatcher] Color similarity: ${(colorSimilarity * 100).toFixed(2)}%`);
     }
@@ -332,14 +355,15 @@ export class PetMatcher {
    * 犬種の類似度スコア計算
    */
   private calculateBreedScore(missingPet: PetInfo, foundPet: FoundPetInfo): number {
-    // 両方とも犬でない場合はスコアを返さない
-    if (missingPet.type !== '犬' || foundPet.petType !== '犬') {
-      return 0;
+    // 犬と猫で犬種・猫種をチェック
+    const isPetTypeSame = missingPet.type?.toLowerCase() === foundPet.petType?.toLowerCase();
+    if (!isPetTypeSame) {
+      return 0; // 異なる動物種の場合は0
     }
     
-    // breed情報を取得（PetInfoとFoundPetInfoの型定義が異なる可能性があるため、安全に取得）
-    const missingBreed = (missingPet as any).breed || (missingPet as any).petBreed;
-    const foundBreed = (foundPet as any).breed || (foundPet as any).petBreed;
+    // breed情報を取得
+    const missingBreed = missingPet.breed;
+    const foundBreed = foundPet.petBreed;
     
     // 犬種情報がない場合
     if (!missingBreed && !foundBreed) {
@@ -348,7 +372,7 @@ export class PetMatcher {
     
     // 片方だけ犬種情報がある場合
     if (!missingBreed || !foundBreed) {
-      return 0.2; // 情報不足のため低スコア
+      return 0.1; // 情報不足のため非常に低いスコア
     }
     
     // 犬種類似度スコアを計算
@@ -600,6 +624,7 @@ export class PetMatcher {
   private getDefaultAnalysis(): VisualAnalysisResult {
     return {
       petType: 'other',
+      breed: null,
       color: [],
       size: 'medium',
       confidence: 0,

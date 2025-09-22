@@ -178,20 +178,45 @@ function calculateTimeMatchScore(missingPet: PetInfo, foundPet: FoundPetInfo): n
 
 // 詳細なスコア内訳を計算
 async function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetInfo) {
-  const scores = {
+  // 外見の特徴と性格を分離
+  const extractPhysicalOnly = (text: string): string => {
+    if (!text) return '';
+    const behaviorWords = ['元気', 'おとなしい', '活発', '人懐っこい', '臆病', '警戒心', '性格', '行動', '大人しい', 'やんちゃ', '怖がり'];
+    const parts = text.split(/[、。,\s]+/);
+    const physicalParts = parts.filter(part => {
+      const trimmed = part.trim();
+      if (!trimmed) return false;
+      return !behaviorWords.some(word => trimmed.includes(word));
+    });
+    return physicalParts.join('、');
+  };
+  
+  const missingPhysical = extractPhysicalOnly(missingPet.specialFeatures || '');
+  const foundPhysical = extractPhysicalOnly(foundPet.features || '');
+  const hasPhysicalFeatures = missingPhysical || foundPhysical;
+  
+  const scores: any = {
     // 基本情報
     petType: {
       score: missingPet.type?.toLowerCase() === foundPet.petType?.toLowerCase() ? 100 : 0,
       missingValue: missingPet.type || missingPet.petType,
       foundValue: foundPet.petType,
-      weight: 25,
+      weight: 15,
       description: '動物の種類'
+    },
+    // 犬種・猫種（最重要）
+    breed: {
+      score: await calculateBreedMatch(missingPet, foundPet),
+      missingValue: missingPet.breed || '不明',
+      foundValue: foundPet.petBreed || '不明',
+      weight: 30,  // 最も高い重要度
+      description: '犬種・猫種'
     },
     size: {
       score: missingPet.size === foundPet.size ? 100 : 0,
       missingValue: missingPet.size,
       foundValue: foundPet.size,
-      weight: 20,
+      weight: 15,
       description: 'サイズ'
     },
     color: {
@@ -199,23 +224,23 @@ async function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetIn
              missingPet.colors[0].toLowerCase().includes(foundPet.color.toLowerCase()) ? 100 : 0,
       missingValue: missingPet.colors?.join(', '),
       foundValue: foundPet.color,
-      weight: 15,
+      weight: 10,
       description: '毛色'
     },
     location: {
       score: calculateLocationProximity(missingPet, foundPet),
       missingValue: missingPet.lastSeen?.location,
       foundValue: foundPet.foundAddress,
-      weight: 15,
+      weight: 10,
       description: '発見場所の近さ'
     },
-    // 外見の特徴
-    features: {
-      score: await calculateFeatureMatch(missingPet, foundPet),
-      missingValue: missingPet.specialFeatures,
-      foundValue: foundPet.features,
-      weight: 10,
-      description: '外見の特徴'
+    // 毛色の詳細マッチング（Gemini APIで強化）
+    colorDetails: {
+      score: await calculateColorDetailsMatch(missingPet, foundPet),
+      missingValue: missingPet.colors?.join(', '),
+      foundValue: foundPet.color,
+      weight: 5,
+      description: '毛色の詳細'
     },
     collar: {
       score: calculateCollarMatch(missingPet, foundPet),
@@ -229,10 +254,36 @@ async function calculateDetailedScores(missingPet: PetInfo, foundPet: FoundPetIn
       score: calculateTimeMatchScore(missingPet, foundPet),
       missingValue: missingPet.lastSeen?.date,
       foundValue: foundPet.foundDate,
-      weight: 10,
+      weight: 5,
       description: '時間の近さ（生存率考慮）'
     }
   };
+  
+  // 外見の特徴または性格・行動のいずれかを追加（重複を避ける）
+  if (hasPhysicalFeatures) {
+    // 外見の特徴がある場合は外見の特徴を表示
+    scores.features = {
+      score: await calculateFeatureMatch(missingPet, foundPet),
+      missingValue: missingPhysical || '外見の特徴なし',
+      foundValue: foundPhysical || '外見の特徴なし',
+      weight: 7,  // 外見の特徴がある場合は重要度を少し上げる
+      description: '外見の特徴'
+    };
+  } else {
+    // 外見の特徴がない（性格のみ）の場合は性格・行動を表示
+    const missingPersonality = extractPersonality(missingPet.specialFeatures);
+    const foundPersonality = extractPersonality(foundPet.features);
+    
+    if (missingPersonality || foundPersonality) {
+      scores.personality = {
+        score: await calculatePersonalityReference(missingPet, foundPet),
+        missingValue: missingPersonality || '情報なし',
+        foundValue: foundPersonality || '情報なし',
+        weight: 3,  // 性格のみの場合でも低い重み
+        description: '性格・行動特性'
+      };
+    }
+  }
 
   // 総合スコアを計算
   const totalWeightedScore = Object.values(scores).reduce((sum, item) => 
@@ -260,18 +311,57 @@ async function calculateFeatureMatch(missingPet: PetInfo, foundPet: FoundPetInfo
   
   if (!missingFeatures || !foundFeatures) return 0;
   
+  // 性格や行動の特徴を除外して外見の特徴のみ抽出
+  const behaviorWords = ['元気', 'おとなしい', '活発', '人懐っこい', '臆病', '警戒心', '性格', '行動', '大人しい', 'やんちゃ', '怖がり'];
+  
+  const extractPhysicalFeatures = (text: string): string => {
+    // 句読点で分割
+    const parts = text.split(/[、。,\s]+/);
+    // 性格に関する部分を除外
+    const physicalParts = parts.filter(part => {
+      const trimmed = part.trim();
+      if (!trimmed) return false;
+      // 性格に関するキーワードが含まれていない部分のみを保持
+      return !behaviorWords.some(word => trimmed.includes(word));
+    });
+    
+    return physicalParts.join('、');
+  };
+  
+  const missingPhysical = extractPhysicalFeatures(missingFeatures);
+  const foundPhysical = extractPhysicalFeatures(foundFeatures);
+  
+  // 両方とも外見の特徴がない場合
+  if (!missingPhysical && !foundPhysical) {
+    console.log('No physical features found in either description');
+    console.log(`Original missing: "${missingFeatures}"`);
+    console.log(`Original found: "${foundFeatures}"`);
+    // 両方が性格のみの記述の場合は、性格マッチングとして50%のスコアを返す
+    // （外見の特徴フィールドとしては不適切だが、データ入力ミスを考慮）
+    return 50;
+  }
+  
+  // 片方だけ外見の特徴がない場合
+  if (!missingPhysical || !foundPhysical) {
+    console.log('Physical features found in only one description');
+    console.log(`Missing physical: "${missingPhysical}"`);
+    console.log(`Found physical: "${foundPhysical}"`);
+    return 25; // 低いスコアを返す
+  }
+  
   try {
     const prompt = `
 以下の2つのペットの外見の特徴を比較し、一致度を0-100の数値で評価してください。
 部分的な一致や意味的な一致も考慮してください。
 
-迷子ペットの特徴: ${missingFeatures}
-発見ペットの特徴: ${foundFeatures}
+迷子ペットの外見特徴: ${missingPhysical}
+発見ペットの外見特徴: ${foundPhysical}
 
 例：
-- 「全体は茶色だけど足の色が白い」と「足が白色」→ 高い一致度（70-90）
-- 「耳が垂れている」と「垂れ耳」→ 高い一致度（80-100）
-- 「黒い斑点がある」と「黒い模様」→ 中程度の一致度（50-70）
+- 「茶色、足が白い」と「足が白色」→ 70（部分一致）
+- 「耳が垂れている」と「垂れ耳」→ 100（同じ意味）
+- 「黒い斑点」と「黒い模様」→ 80（類似）
+- 「尻尾が短い」と「尻尾が長い」→ 0（矛盾）
 
 数値のみを返してください。`;
     
@@ -281,7 +371,7 @@ async function calculateFeatureMatch(missingPet: PetInfo, foundPet: FoundPetInfo
     const score = parseInt(text);
     
     if (!isNaN(score) && score >= 0 && score <= 100) {
-      console.log(`Feature match score via AI: ${score}% for "${missingFeatures}" vs "${foundFeatures}"`);
+      console.log(`Feature match score via AI: ${score}% for "${missingPhysical}" vs "${foundPhysical}"`);
       return score;
     }
   } catch (error) {
@@ -299,6 +389,154 @@ async function calculateFeatureMatch(missingPet: PetInfo, foundPet: FoundPetInfo
   );
   
   return Math.round((matchingWords.length / missingWords.length) * 100);
+}
+
+// 犬種・猫種のマッチング度を計算（最重要）
+async function calculateBreedMatch(missingPet: PetInfo, foundPet: FoundPetInfo): Promise<number> {
+  const missingBreed = missingPet.breed || '';
+  const foundBreed = foundPet.petBreed || '';
+  
+  // 両方とも犬種情報がない場合
+  if (!missingBreed && !foundBreed) {
+    return 30; // 不明同士は低めのスコア
+  }
+  
+  // 片方だけ犬種情報がある場合
+  if (!missingBreed || !foundBreed) {
+    return 10; // 情報不足のため非常に低いスコア
+  }
+  
+  // 完全一致
+  if (missingBreed.toLowerCase() === foundBreed.toLowerCase()) {
+    console.log(`Breed exact match: ${missingBreed}`);
+    return 100;
+  }
+  
+  try {
+    const prompt = `
+以下の2つの犬種または猫種を比較し、一致度を0-100の数値で評価してください。
+同じ品種の異なる呼び方や、関連する品種も考慮してください。
+
+品種1: ${missingBreed}
+品種2: ${foundBreed}
+
+例：
+- 「柴犬」と「Shiba Inu」→ 100（同じ品種）
+- 「柴犬」と「しばいぬ」→ 100（同じ品種）
+- 「トイプードル」と「プードル」→ 85（関連品種）
+- 「ゴールデンレトリーバー」と「ラブラドールレトリーバー」→ 40（異なるが類似）
+- 「柴犬」と「秋田犬」→ 30（日本犬だが異なる）
+- 「チワワ」と「ゴールデンレトリーバー」→ 0（全く異なる）
+
+数値のみを返してください。`;
+    
+    const result = await geminiModel.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
+    const score = parseInt(text);
+    
+    if (!isNaN(score) && score >= 0 && score <= 100) {
+      console.log(`Breed match score via AI: ${score}% for "${missingBreed}" vs "${foundBreed}"`);
+      return score;
+    }
+  } catch (error) {
+    console.error('Error using Gemini for breed matching:', error);
+  }
+  
+  // フォールバック: 部分一致を確認
+  const breed1Words = missingBreed.toLowerCase().split(/[\s\-_]+/);
+  const breed2Words = foundBreed.toLowerCase().split(/[\s\-_]+/);
+  const commonWords = breed1Words.filter(w => breed2Words.includes(w));
+  
+  if (commonWords.length > 0) {
+    const similarity = (commonWords.length * 2) / (breed1Words.length + breed2Words.length);
+    return Math.round(similarity * 100);
+  }
+  
+  return 0;
+}
+
+// 毛色の詳細なマッチング（Gemini APIを使用）
+async function calculateColorDetailsMatch(missingPet: PetInfo, foundPet: FoundPetInfo): Promise<number> {
+  const missingColors = missingPet.colors?.join(', ') || missingPet.color || '';
+  const foundColor = foundPet.color || '';
+  
+  if (!missingColors || !foundColor) return 0;
+  
+  try {
+    const prompt = `
+以下の2つのペットの毛色を比較し、一致度を0-100の数値で評価してください。
+色の名前が異なっても、実際の色が同じまたは似ている場合は高い一致度を付けてください。
+
+迷子ペットの毛色: ${missingColors}
+発見ペットの毛色: ${foundColor}
+
+例：
+- 「茶色」と「ブラウン」→ 100（同じ色）
+- 「茶色と白」と「白茶」→ 100（同じ色の組み合わせ）
+- 「黒」と「黒と白」→ 60（部分的に一致）
+- 「白」と「クリーム」→ 70（似た色）
+
+数値のみを返してください。`;
+    
+    const result = await geminiModel.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text().trim();
+    const score = parseInt(text);
+    
+    if (!isNaN(score) && score >= 0 && score <= 100) {
+      console.log(`Color details match score via AI: ${score}% for "${missingColors}" vs "${foundColor}"`);
+      return score;
+    }
+  } catch (error) {
+    console.error('Error using Gemini for color matching:', error);
+  }
+  
+  // フォールバック: 簡易的な色マッチング
+  const missingColorList = missingColors.toLowerCase().split(/[,、\s]+/).filter(c => c);
+  const foundColorList = foundColor.toLowerCase().split(/[,、\s]+/).filter(c => c);
+  
+  if (missingColorList.length === 0 || foundColorList.length === 0) return 0;
+  
+  const matchCount = missingColorList.filter(mc => 
+    foundColorList.some(fc => fc.includes(mc) || mc.includes(fc))
+  ).length;
+  
+  return Math.round((matchCount / Math.max(missingColorList.length, foundColorList.length)) * 100);
+}
+
+// 性格・行動特性を抽出
+function extractPersonality(features: string | undefined): string {
+  if (!features) return '';
+  
+  const behaviorWords = ['元気', 'おとなしい', '活発', '人懐っこい', '臆病', '警戒心', '性格', '行動', '大人しい', 'やんちゃ', '怖がり'];
+  const parts = features.split(/[、。,\s]+/);
+  const personalityParts = parts.filter(part => {
+    const trimmed = part.trim();
+    if (!trimmed) return false;
+    // 性格に関するキーワードが含まれている部分のみを抽出
+    return behaviorWords.some(word => trimmed.includes(word));
+  });
+  
+  return personalityParts.join('、');
+}
+
+// 性格の参考マッチング（低重要度）
+async function calculatePersonalityReference(missingPet: PetInfo, foundPet: FoundPetInfo): Promise<number> {
+  const missingPersonality = extractPersonality(missingPet.specialFeatures);
+  const foundPersonality = extractPersonality(foundPet.features);
+  
+  if (!missingPersonality || !foundPersonality) {
+    return 50; // 性格情報がない場合は中立的なスコア
+  }
+  
+  // 同じような性格の場合は少しボーナス
+  // 異なる性格でも減点はしない（外見が重要なため）
+  if (missingPersonality.includes('元気') && foundPersonality.includes('元気')) return 70;
+  if (missingPersonality.includes('おとなしい') && foundPersonality.includes('おとなしい')) return 70;
+  if (missingPersonality.includes('人懐っこい') && foundPersonality.includes('人懐っこい')) return 70;
+  
+  return 50; // デフォルトは中立
 }
 
 // 首輪のマッチング度を計算
@@ -676,8 +914,8 @@ export async function POST(request: NextRequest) {
           
           // スコアが30%以上のマッチを保存
           if (matchResult.matchScore >= 30) {
-            // マッチング結果をデータベースに保存
-            const matchDoc = await db.collection('matches').add({
+            // マッチング結果をデータベースに保存（undefined値を除去）
+            const matchData = removeUndefinedFields({
               ...matchResult,
               missingPetName: missingPet.name,
               missingPetType: missingPet.type,
@@ -685,6 +923,8 @@ export async function POST(request: NextRequest) {
               createdAt: new Date(),
               status: 'pending',
             });
+            
+            const matchDoc = await db.collection('matches').add(matchData);
 
             matches.push({
               id: matchDoc.id,

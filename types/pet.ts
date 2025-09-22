@@ -52,6 +52,7 @@ export interface User {
 export interface FoundPetInfo {
   id?: string;
   petType: string;
+  petBreed?: string;
   size: string;
   weight?: number; // 体重（kg）
   color: string;

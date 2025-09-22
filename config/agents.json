@@ -31,12 +31,6 @@
           "feature_model": "pet-feature-extractor-v1",
           "feature_dimension": 1024
         },
-        "vector_search": {
-          "index_name": "pet-features-index",
-          "similarity_threshold": 0.7,
-          "max_results": 50,
-          "endpoint": "${VECTOR_SEARCH_ENDPOINT}"
-        },
         "imagen": {
           "endpoint": "${IMAGEN_ENDPOINT}",
           "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
