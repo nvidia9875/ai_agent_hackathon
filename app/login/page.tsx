@@ -5,21 +5,24 @@ export const dynamic = 'force-dynamic';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth/auth-context';
+import { createGuestUser } from '@/lib/utils/guest-user';
 import {
   Box,
   Paper,
   Typography,
   Button,
   Alert,
-  CircularProgress
+  CircularProgress,
+  Divider
 } from '@mui/material';
-import { Google as GoogleIcon } from '@mui/icons-material';
+import { Google as GoogleIcon, PersonOutline as PersonIcon } from '@mui/icons-material';
 
 export default function LoginPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [guestLoading, setGuestLoading] = useState(false);
   const router = useRouter();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, setUser } = useAuth();
 
   const handleGoogleSignIn = async () => {
     setError('');
@@ -31,6 +34,21 @@ export default function LoginPage() {
       setError(error.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuestSignIn = async () => {
+    setError('');
+    setGuestLoading(true);
+    try {
+      const guestUser = createGuestUser();
+      localStorage.setItem('guestUser', JSON.stringify(guestUser));
+      setUser(guestUser as any);
+      router.push('/');
+    } catch (error: any) {
+      setError('ゲストログインに失敗しました');
+    } finally {
+      setGuestLoading(false);
     }
   };
 
@@ -78,7 +96,7 @@ export default function LoginPage() {
           size="large"
           startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <GoogleIcon />}
           onClick={handleGoogleSignIn}
-          disabled={loading}
+          disabled={loading || guestLoading}
           sx={{ 
             py: 1.5,
             fontSize: '1.1rem',
@@ -92,8 +110,32 @@ export default function LoginPage() {
           {loading ? 'ログイン中...' : 'Googleアカウントでログイン'}
         </Button>
 
+        <Divider sx={{ my: 3 }}>または</Divider>
+
+        <Button
+          fullWidth
+          variant="outlined"
+          size="large"
+          startIcon={guestLoading ? <CircularProgress size={20} /> : <PersonIcon />}
+          onClick={handleGuestSignIn}
+          disabled={loading || guestLoading}
+          sx={{ 
+            py: 1.5,
+            fontSize: '1.1rem',
+            textTransform: 'none',
+            borderWidth: 2,
+            '&:hover': {
+              borderWidth: 2,
+            }
+          }}
+        >
+          {guestLoading ? 'ゲストモードで開始中...' : 'ゲストモードで開始'}
+        </Button>
+
         <Typography variant="caption" color="text.secondary" sx={{ mt: 3, display: 'block' }}>
-          ログインすることで、利用規約とプライバシーポリシーに同意したものとみなされます
+          ゲストモードではブラウザのキャッシュにデータが保存されます。
+          <br />
+          キャッシュをクリアするとデータは失われます。
         </Typography>
       </Paper>
     </Box>

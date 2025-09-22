@@ -22,13 +22,45 @@ service cloud.firestore {
       allow write: if request.auth != null;
     }
     
-    match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    match /foundPets/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
     }
     
-    // その他のコレクション
+    // マッチング関連
+    match /matches/{document=**} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+    
+    // チャット関連 - ゲストユーザーも読み取り可能に
+    match /chatRooms/{roomId}/{document=**} {
+      allow read: if true;  // 誰でも読み取り可能（ゲストユーザー対応）
+      allow write: if request.auth != null;
+    }
+    
+    // エージェント活動ログ - ゲストユーザーも読み取り可能に
+    match /agentActivities/{document=**} {
+      allow read: if true;  // 誰でも読み取り可能（ゲストユーザー対応）
+      allow write: if request.auth != null;
+    }
+    
+    // システムアラート - ゲストユーザーも読み取り可能に
+    match /systemAlerts/{document=**} {
+      allow read: if true;  // 誰でも読み取り可能（ゲストユーザー対応）
+      allow write: if request.auth != null;
+    }
+    
+    // ユーザー固有のデータ
+    match /users/{userId}/{document=**} {
+      allow read: if true;  // 誰でも読み取り可能（ゲストユーザー対応）
+      allow write: if request.auth != null && request.auth.uid == userId;
+    }
+    
+    // その他のコレクション（デフォルト）
     match /{document=**} {
-      allow read, write: if request.auth != null;
+      allow read: if true;  // 誰でも読み取り可能（ゲストユーザー対応）
+      allow write: if request.auth != null;
     }
   }
 }

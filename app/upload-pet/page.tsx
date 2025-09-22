@@ -57,6 +57,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
 import { dogBreeds } from '@/lib/config/dog-breeds';
 import { useSuccessNotification } from '@/lib/contexts/success-notification-context';
+import { isGuestUser } from '@/lib/utils/guest-user';
+import { saveGuestPet } from '@/lib/firestore/guest-storage';
 
 interface PetData {
   // ペット情報
@@ -290,66 +292,112 @@ function UploadPetContent() {
     setLoading(true);
     
     try {
-      // 画像をFirebase Storageにアップロード
-      const imageUrls: string[] = [];
-      for (let i = 0; i < images.length; i++) {
-        const image = images[i];
-        const storageRef = ref(storage, `pets/${user?.uid}/${Date.now()}_${i}_${image.name}`);
-        const snapshot = await uploadBytes(storageRef, image);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        imageUrls.push(downloadUrl);
+      let docRefId: string;
+      let imageUrls: string[] = [];
+      
+      // ゲストユーザーの場合
+      if (user && isGuestUser(user.uid)) {
+        // 画像をbase64に変換してローカルストレージに保存
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(image);
+          });
+          imageUrls.push(base64);
+        }
+        
+        // ローカルストレージにデータを保存
+        docRefId = saveGuestPet(user.uid, {
+          ...formData,
+          images: imageUrls,
+          name: formData.petName,
+          type: formData.petType,
+          breed: formData.petBreed,
+          weight: formData.weight ? parseFloat(formData.weight) : null,
+          colors: formData.color ? [formData.color] : [],
+          specialFeatures: formData.features,
+          hasCollar: formData.hasCollar,
+          collarColor: formData.collarColor,
+          lastSeen: {
+            date: formData.lastSeenDate,
+            time: formData.lastSeenTime,
+            location: formData.lastSeenAddress,
+            details: formData.lastSeenDetails
+          },
+          ownerNickname: formData.ownerNickname,
+          userId: user.uid,
+          userEmail: user.email || 'guest@example.com',
+          status: 'missing',
+        } as any);
+        
+      } else {
+        // 通常のユーザーの場合
+        // 画像をFirebase Storageにアップロード
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          const storageRef = ref(storage, `pets/${user?.uid}/${Date.now()}_${i}_${image.name}`);
+          const snapshot = await uploadBytes(storageRef, image);
+          const downloadUrl = await getDownloadURL(snapshot.ref);
+          imageUrls.push(downloadUrl);
+        }
+        
+        // Firestoreにデータを保存
+        const docRef = await addDoc(collection(db, 'pets'), {
+          ...formData,
+          images: imageUrls,
+          name: formData.petName,
+          type: formData.petType,
+          breed: formData.petBreed,
+          weight: formData.weight ? parseFloat(formData.weight) : null,
+          colors: formData.color ? [formData.color] : [],
+          specialFeatures: formData.features,
+          hasCollar: formData.hasCollar,
+          collarColor: formData.collarColor,
+          lastSeen: {
+            date: formData.lastSeenDate,
+            time: formData.lastSeenTime,
+            location: formData.lastSeenAddress,
+            details: formData.lastSeenDetails
+          },
+          ownerNickname: formData.ownerNickname,
+          userId: user?.uid,
+          userEmail: user?.email,
+          status: 'missing',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        docRefId = docRef.id;
       }
       
-      // Firestoreにデータを保存
-      const docRef = await addDoc(collection(db, 'pets'), {
-        ...formData,
-        images: imageUrls, // imageUrlsをimagesに変更してPetMatcherと互換性を保つ
-        name: formData.petName, // petNameをnameに変更
-        type: formData.petType, // petTypeをtypeに変更
-        breed: formData.petBreed, // 犬種を保存
-        weight: formData.weight ? parseFloat(formData.weight) : null, // 体重を数値として保存
-        colors: formData.color ? [formData.color] : [], // colorを配列形式に変換
-        specialFeatures: formData.features, // featuresをspecialFeaturesに変更
-        hasCollar: formData.hasCollar, // 首輪の有無を保存
-        collarColor: formData.collarColor, // 首輪の色を保存
-        lastSeen: {
-          date: formData.lastSeenDate,
-          time: formData.lastSeenTime,
-          location: formData.lastSeenAddress,
-          details: formData.lastSeenDetails
-        },
-        ownerNickname: formData.ownerNickname, // ニックネームを保存
-        userId: user?.uid,
-        userEmail: user?.email,
-        status: 'missing', // 自動マッチング用のステータス
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-      console.log('Document written with ID: ', docRef.id);
+      console.log('Document written with ID: ', docRefId);
       
       // Visual Detective Agentによる自動マッチングを実行（発見ペットと照合）
-      try {
-        console.log('Starting AI auto-matching for missing pet...');
-        const matchResponse = await fetch('/api/auto-match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            missingPetId: docRef.id, // 新しく登録した迷子ペットのIDを送信
-          }),
-        });
+      // ゲストユーザーの場合はスキップ
+      if (!user || !isGuestUser(user.uid)) {
+        try {
+          console.log('Starting AI auto-matching for missing pet...');
+          const matchResponse = await fetch('/api/auto-match', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              missingPetId: docRefId, // 新しく登録した迷子ペットのIDを送信
+            }),
+          });
         
-        if (matchResponse.ok) {
-          const matchData = await matchResponse.json();
-          console.log(`AI matching completed for missing pet. Found ${matchData.matchesFound} potential matches`);
-        } else {
-          console.warn('Auto-matching failed, but pet was successfully registered');
+          if (matchResponse.ok) {
+            const matchData = await matchResponse.json();
+            console.log(`AI matching completed for missing pet. Found ${matchData.matchesFound} potential matches`);
+          } else {
+            console.warn('Auto-matching failed, but pet was successfully registered');
+          }
+        } catch (matchError) {
+          console.error('Auto-matching error:', matchError);
+          // マッチングに失敗してもペット登録は成功として扱う
         }
-      } catch (matchError) {
-        console.error('Auto-matching error:', matchError);
-        // マッチングに失敗してもペット登録は成功として扱う
       }
       
       // 成功通知を表示してすぐにリダイレクト
@@ -930,6 +978,8 @@ function UploadPetContent() {
     }
   };
 
+  const isGuest = user && isGuestUser(user.uid);
+
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
       <Box sx={{ width: 240 }}>
@@ -943,6 +993,13 @@ function UploadPetContent() {
         />
         
         <Box sx={{ maxWidth: 1000, mx: 'auto', px: 4, py: 4 }}>
+          {isGuest && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              ゲストモードでは迷子ペットの登録はできません。
+              ログインしてご利用ください。
+            </Alert>
+          )}
+
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
               {error}
@@ -986,7 +1043,7 @@ function UploadPetContent() {
                     <Button
                       variant="contained"
                       onClick={handleSubmit}
-                      disabled={loading}
+                      disabled={loading || isGuest}
                       startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
                       sx={{
                         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
@@ -1001,6 +1058,7 @@ function UploadPetContent() {
                     <Button
                       variant="contained"
                       onClick={handleNext}
+                      disabled={isGuest}
                       endIcon={<NavigateNextIcon />}
                     >
                       次へ

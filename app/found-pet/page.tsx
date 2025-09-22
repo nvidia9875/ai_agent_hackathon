@@ -64,6 +64,8 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { useAuth } from '@/lib/auth/auth-context';
 import { dogBreeds } from '@/lib/config/dog-breeds';
 import { useSuccessNotification } from '@/lib/contexts/success-notification-context';
+import { isGuestUser } from '@/lib/utils/guest-user';
+import { saveGuestPet } from '@/lib/firestore/guest-storage';
 
 interface FoundPetData {
   // 見つけたペットの情報
@@ -276,53 +278,86 @@ function FoundPetContent() {
     setLoading(true);
     
     try {
-      // 画像をFirebase Storageにアップロード
-      const imageUrls: string[] = [];
-      for (let i = 0; i < images.length; i++) {
-        const image = images[i];
-        const storageRef = ref(storage, `found-pets/${Date.now()}_${i}_${image.name}`);
-        const snapshot = await uploadBytes(storageRef, image);
-        const downloadUrl = await getDownloadURL(snapshot.ref);
-        imageUrls.push(downloadUrl);
+      let docRefId: string;
+      let imageUrls: string[] = [];
+      
+      // ゲストユーザーの場合
+      if (user && isGuestUser(user.uid)) {
+        // 画像をbase64に変換してローカルストレージに保存
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          const reader = new FileReader();
+          const base64 = await new Promise<string>((resolve) => {
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(image);
+          });
+          imageUrls.push(base64);
+        }
+        
+        // ローカルストレージにデータを保存
+        docRefId = saveGuestPet(user.uid, {
+          ...formData,
+          breed: formData.petBreed,
+          weight: formData.weight ? parseFloat(formData.weight) : null,
+          finderNickname: formData.finderNickname,
+          userId: user.uid,
+          imageUrls,
+          status: 'found',
+        } as any);
+        
+      } else {
+        // 通常のユーザーの場合
+        // 画像をFirebase Storageにアップロード
+        for (let i = 0; i < images.length; i++) {
+          const image = images[i];
+          const storageRef = ref(storage, `found-pets/${Date.now()}_${i}_${image.name}`);
+          const snapshot = await uploadBytes(storageRef, image);
+          const downloadUrl = await getDownloadURL(snapshot.ref);
+          imageUrls.push(downloadUrl);
+        }
+        
+        // Firestoreにデータを保存
+        const docRef = await addDoc(collection(db, 'foundPets'), {
+          ...formData,
+          breed: formData.petBreed,
+          weight: formData.weight ? parseFloat(formData.weight) : null,
+          finderNickname: formData.finderNickname,
+          userId: user?.uid,
+          imageUrls,
+          status: 'found',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp()
+        });
+        docRefId = docRef.id;
       }
       
-      // Firestoreにデータを保存
-      const docRef = await addDoc(collection(db, 'foundPets'), {
-        ...formData,
-        breed: formData.petBreed, // 犬種を保存
-        weight: formData.weight ? parseFloat(formData.weight) : null, // 体重を数値として保存
-        finderNickname: formData.finderNickname, // ニックネームを保存
-        userId: user?.uid, // ユーザーIDを保存
-        imageUrls,
-        status: 'found', // found, matched, resolved
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp()
-      });
-      
-      console.log('Document written with ID: ', docRef.id);
+      console.log('Document written with ID: ', docRefId);
       
       // Visual Detective Agentによる自動マッチングを実行
-      try {
-        console.log('Starting AI auto-matching...');
-        const matchResponse = await fetch('/api/auto-match', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            foundPetId: docRef.id,
-          }),
-        });
+      // ゲストユーザーの場合はスキップ
+      if (!user || !isGuestUser(user.uid)) {
+        try {
+          console.log('Starting AI auto-matching...');
+          const matchResponse = await fetch('/api/auto-match', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              foundPetId: docRefId,
+            }),
+          });
         
-        if (matchResponse.ok) {
-          const matchData = await matchResponse.json();
-          console.log(`AI matching completed. Found ${matchData.matchesFound} potential matches`);
-        } else {
-          console.warn('Auto-matching failed, but pet was successfully registered');
+          if (matchResponse.ok) {
+            const matchData = await matchResponse.json();
+            console.log(`AI matching completed. Found ${matchData.matchesFound} potential matches`);
+          } else {
+            console.warn('Auto-matching failed, but pet was successfully registered');
+          }
+        } catch (matchError) {
+          console.error('Auto-matching error:', matchError);
+          // マッチングに失敗してもペット登録は成功として扱う
         }
-      } catch (matchError) {
-        console.error('Auto-matching error:', matchError);
-        // マッチングに失敗してもペット登録は成功として扱う
       }
       
       // 成功通知を表示してすぐにリダイレクト
@@ -336,6 +371,8 @@ function FoundPetContent() {
       setLoading(false);
     }
   };
+
+  const isGuest = user && isGuestUser(user.uid);
 
   return (
     <Box sx={{ display: 'flex', minHeight: '100vh', bgcolor: 'grey.50' }}>
@@ -352,6 +389,13 @@ function FoundPetContent() {
           subtitle="30秒で報告完了！AIが飼い主さんを探します"
         />
         <Box sx={{ maxWidth: 800, mx: 'auto', p: 4 }}>
+
+          {isGuest && (
+            <Alert severity="warning" sx={{ mb: 3 }}>
+              ゲストモードではペットの発見報告はできません。
+              ログインしてご利用ください。
+            </Alert>
+          )}
 
           {error && (
             <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError('')}>
@@ -828,7 +872,7 @@ function FoundPetContent() {
               size="large"
               startIcon={loading ? <CircularProgress size={20} color="inherit" /> : <SendIcon />}
               onClick={handleSubmit}
-              disabled={loading}
+              disabled={loading || isGuest}
               sx={{
                 background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                 px: 4,

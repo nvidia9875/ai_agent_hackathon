@@ -40,6 +40,7 @@ import { BehaviorPredictor } from '@/lib/services/behavior-predictor';
 import { WeatherService } from '@/lib/services/weather-service';
 import { GeocodingService } from '@/lib/services/geocoding-service';
 import { enhancedHeatmapGenerator } from '@/lib/services/enhanced-heatmap-generator';
+import { createMapMarker, addMarkerListener, removeMarker, setMarkerAnimation } from '@/lib/utils/google-maps-helpers';
 import { getUserPets, getAllMissingPets, getMatchedPets } from '@/lib/firestore/pets';
 import type { PetInfo } from '@/types/pet';
 import { useAuth } from '@/lib/auth/auth-context';
@@ -64,8 +65,8 @@ const TIME_FRAMES: PredictionTimeFrame[] = [
   { hours: 24, label: '24時間以内' },
 ];
 
-// Paw icon SVG for lost pets
-const PAW_ICON_SVG = `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%23f44336'%3E%3Cpath d='M4.5 10.5C4.5 12.9853 6.51472 15 9 15C11.4853 15 13.5 12.9853 13.5 10.5C13.5 8.01472 11.4853 6 9 6C6.51472 6 4.5 8.01472 4.5 10.5ZM9.00003 1C7.34317 1 6.00003 2.34315 6.00003 4C6.00003 5.65685 7.34317 7 9.00003 7C10.6569 7 12 5.65685 12 4C12 2.34315 10.6569 1 9.00003 1ZM3.00003 4C3.00003 2.34315 4.34317 1 6.00003 1C4.34317 1 3.00003 2.34315 3.00003 4C3.00003 5.65685 4.34317 7 6.00003 7C4.34317 7 3.00003 5.65685 3.00003 4ZM15 4C15 2.34315 16.3432 1 18 1C19.6569 1 21 2.34315 21 4C21 5.65685 19.6569 7 18 7C16.3432 7 15 5.65685 15 4ZM15 7C13.3432 7 12 5.65685 12 4C12 5.65685 13.3432 7 15 7C16.6569 7 18 5.65685 18 4C18 5.65685 16.6569 7 15 7ZM10.5 10.5C10.5 12.9853 12.5147 15 15 15C17.4853 15 19.5 12.9853 19.5 10.5C19.5 8.01472 17.4853 6 15 6C12.5147 6 10.5 8.01472 10.5 10.5ZM8.20711 16.2071C7.81658 15.8166 7.18342 15.8166 6.79289 16.2071C6.40237 16.5976 6.40237 17.2308 6.79289 17.6213L11.2929 22.1213C11.6834 22.5118 12.3166 22.5118 12.7071 22.1213L17.2071 17.6213C17.5976 17.2308 17.5976 16.5976 17.2071 16.2071C16.8166 15.8166 16.1834 15.8166 15.7929 16.2071L12 20L8.20711 16.2071Z'/%3E%3C/svg%3E`;
+// Paw icon SVG for lost pets (Green color)
+const PAW_ICON_SVG = `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234CAF50'%3E%3Cpath d='M4.5 10.5C4.5 12.9853 6.51472 15 9 15C11.4853 15 13.5 12.9853 13.5 10.5C13.5 8.01472 11.4853 6 9 6C6.51472 6 4.5 8.01472 4.5 10.5ZM9.00003 1C7.34317 1 6.00003 2.34315 6.00003 4C6.00003 5.65685 7.34317 7 9.00003 7C10.6569 7 12 5.65685 12 4C12 2.34315 10.6569 1 9.00003 1ZM3.00003 4C3.00003 2.34315 4.34317 1 6.00003 1C4.34317 1 3.00003 2.34315 3.00003 4C3.00003 5.65685 4.34317 7 6.00003 7C4.34317 7 3.00003 5.65685 3.00003 4ZM15 4C15 2.34315 16.3432 1 18 1C19.6569 1 21 2.34315 21 4C21 5.65685 19.6569 7 18 7C16.3432 7 15 5.65685 15 4ZM15 7C13.3432 7 12 5.65685 12 4C12 5.65685 13.3432 7 15 7C16.6569 7 18 5.65685 18 4C18 5.65685 16.6569 7 15 7ZM10.5 10.5C10.5 12.9853 12.5147 15 15 15C17.4853 15 19.5 12.9853 19.5 10.5C19.5 8.01472 17.4853 6 15 6C12.5147 6 10.5 8.01472 10.5 10.5ZM8.20711 16.2071C7.81658 15.8166 7.18342 15.8166 6.79289 16.2071C6.40237 16.5976 6.40237 17.2308 6.79289 17.6213L11.2929 22.1213C11.6834 22.5118 12.3166 22.5118 12.7071 22.1213L17.2071 17.6213C17.5976 17.2308 17.5976 16.5976 17.2071 16.2071C16.8166 15.8166 16.1834 15.8166 15.7929 16.2071L12 20L8.20711 16.2071Z'/%3E%3C/svg%3E`;
 
 export default function IntegratedBehaviorMap() {
   const mapRef = useRef<HTMLDivElement>(null);
@@ -92,7 +93,7 @@ export default function IntegratedBehaviorMap() {
   
   // Map elements refs
   const heatmapLayer = useRef<any>(null);
-  const markersRef = useRef<any[]>([]);
+  const markersRef = useRef<Array<{marker: any, isAdvanced: boolean, petMarker?: boolean, matchedPet?: any, isMatchedMarker?: boolean}>>([]);
   const circlesRef = useRef<any[]>([]);
   const infoWindowRef = useRef<any>(null);
   const pathLineRef = useRef<any>(null);
@@ -230,12 +231,12 @@ export default function IntegratedBehaviorMap() {
 
   const addPetMarkers = async () => {
     // Clear existing markers
-    markersRef.current.forEach(marker => {
-      if (marker.petMarker) {
-        marker.setMap(null);
+    markersRef.current.forEach(markerData => {
+      if (markerData.petMarker) {
+        removeMarker(markerData);
       }
     });
-    markersRef.current = markersRef.current.filter(marker => !marker.petMarker);
+    markersRef.current = markersRef.current.filter(markerData => !markerData.petMarker);
 
     const geocodingService = GeocodingService.getInstance();
 
@@ -267,31 +268,35 @@ export default function IntegratedBehaviorMap() {
         position = pet.lastSeenLocation;
       }
       
-      // マッチしたペット用の特別なアイコン（緑色のチェックマーク）
-      const marker = new window.google.maps.Marker({
+      // マッチしたペット用の特別なアイコン（オレンジ色の肉球）
+      const markerResult = await createMapMarker({
         position: position,
         map,
         title: `${pet.name} (マッチ済み - ${pet.foundAddress || '発見場所'})`,
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='%234CAF50'%3E%3Cpath d='M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z'/%3E%3C/svg%3E`,
-          scaledSize: new window.google.maps.Size(45, 45),
+          url: '/paw-orange.svg',
+          scaledSize: new window.google.maps.Size(80, 80),
+          anchor: new window.google.maps.Point(40, 40),
         },
         animation: window.google.maps.Animation.DROP,
         zIndex: 1000 // マッチしたペットを最前面に
       });
 
-      (marker as any).petMarker = true;
-      (marker as any).matchedPet = pet;
-      (marker as any).isMatchedMarker = true;
+      const markerData = {
+        ...markerResult,
+        petMarker: true,
+        matchedPet: pet,
+        isMatchedMarker: true
+      };
 
       // クリックでマッチング結果モーダルを開く
-      marker.addListener('click', () => {
+      addMarkerListener(markerResult, 'click', () => {
         console.log('マッチングマーカーがクリックされました:', pet);
         setSelectedMatchedPet(pet);
         setShowMatchingModal(true);
       });
 
-      markersRef.current.push(marker);
+      markersRef.current.push(markerData);
       
       // 迷子になった場所から発見場所へのラインを引く
       if (pet.lastSeenLocation && position !== pet.lastSeenLocation) {
@@ -337,21 +342,24 @@ export default function IntegratedBehaviorMap() {
         position = pet.lastSeenLocation;
       }
       
-      const marker = new window.google.maps.Marker({
+      const markerResult = await createMapMarker({
         position: position,
         map,
         title: pet.name,
         icon: {
-          url: `data:image/svg+xml;charset=UTF-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='${isUserPet ? '%23ff5722' : '%23f44336'}'%3E%3Cpath d='M9,11.5c-1.4,0-2.5,1.1-2.5,2.5s1.1,2.5,2.5,2.5s2.5-1.1,2.5-2.5S10.4,11.5,9,11.5z M9,15c-0.6,0-1-0.4-1-1s0.4-1,1-1s1,0.4,1,1S9.6,15,9,15z M15,11.5c-1.4,0-2.5,1.1-2.5,2.5s1.1,2.5,2.5,2.5s2.5-1.1,2.5-2.5S16.4,11.5,15,11.5z M15,15c-0.6,0-1-0.4-1-1s0.4-1,1-1s1,0.4,1,1S15.6,15,15,15z M10.2,7.7c0,1.3-0.7,2.3-1.5,2.3S7.2,9,7.2,7.7S7.9,5.5,8.7,5.5S10.2,6.5,10.2,7.7z M16.8,7.7c0,1.3-0.7,2.3-1.5,2.3s-1.5-1-1.5-2.3s0.7-2.3,1.5-2.3S16.8,6.5,16.8,7.7z M12,19c-3.8,0-5-4.4-5-5c0-1.7,2.2-3,5-3s5,1.3,5,3C17,14.6,15.8,19,12,19z'/%3E%3C/svg%3E`,
-          scaledSize: new window.google.maps.Size(isSelected ? 40 : 28, isSelected ? 40 : 28),
-          opacity: 0.6
+          url: '/paw-green.svg',
+          scaledSize: new window.google.maps.Size(isSelected ? 80 : 56, isSelected ? 80 : 56),
+          anchor: new window.google.maps.Point(isSelected ? 40 : 28, isSelected ? 40 : 28),
         },
-        animation: isSelected ? window.google.maps.Animation.BOUNCE : null,
+        animation: isSelected ? window.google.maps.Animation.BOUNCE : undefined,
       });
 
-      (marker as any).petMarker = true;
+      const markerData = {
+        ...markerResult,
+        petMarker: true
+      };
 
-      marker.addListener('click', () => {
+      addMarkerListener(markerResult, 'click', () => {
         infoWindowRef.current.setContent(`
           <div style="padding: 8px; min-width: 200px;">
             <h3 style="margin: 0 0 8px 0; color: ${isUserPet ? '#ff5722' : '#f44336'};">
@@ -367,10 +375,10 @@ export default function IntegratedBehaviorMap() {
             ${isUserPet ? '<p style="margin: 8px 0 0 0; color: #ff5722; font-weight: bold;">あなたのペット</p>' : ''}
           </div>
         `);
-        infoWindowRef.current.open(map, marker);
+        infoWindowRef.current.open(map, markerResult.marker);
       });
 
-      markersRef.current.push(marker);
+      markersRef.current.push(markerData);
     }
   };
 
@@ -389,14 +397,14 @@ export default function IntegratedBehaviorMap() {
       pathLineRef.current = null;
     }
 
-    markersRef.current.forEach(marker => {
+    markersRef.current.forEach(markerData => {
       // ペットマーカーとマッチラインは残す
-      if (!(marker as any).petMarker && !(marker as any).matchLine) {
-        marker.setMap(null);
+      if (!markerData.petMarker && !(markerData as any).matchLine) {
+        removeMarker(markerData);
       }
     });
-    markersRef.current = markersRef.current.filter(marker => 
-      (marker as any).petMarker || (marker as any).matchLine
+    markersRef.current = markersRef.current.filter(markerData => 
+      markerData.petMarker || (markerData as any).matchLine
     );
 
     circlesRef.current.forEach(circle => circle.setMap(null));
@@ -467,7 +475,7 @@ export default function IntegratedBehaviorMap() {
           park: '#8BC34A',
         };
 
-        const marker = new window.google.maps.Marker({
+        createMapMarker({
           position: poi.location,
           map,
           title: poi.name,
@@ -478,9 +486,10 @@ export default function IntegratedBehaviorMap() {
             fillOpacity: 0.9,
             strokeColor: '#FFFFFF',
             strokeWeight: 2,
-          },
+          } as any,
+        }).then((markerResult) => {
+          markersRef.current.push(markerResult);
         });
-        markersRef.current.push(marker);
       });
     }
   };
@@ -562,13 +571,15 @@ export default function IntegratedBehaviorMap() {
       }
     }
 
-    // 時間経過を表す経路マーカー
-    pathCoordinates.forEach((coord, index) => {
-      const timeLabel = index === 0 ? '失踪地点' : 
-                       index === pathCoordinates.length - 1 ? `${pathCoordinates.length - 1}時間後` : 
+    // 時間経過を表す経路マーカー（失踪地点のマーカーは除外）
+    pathCoordinates.forEach(async (coord, index) => {
+      // 最初のポイント（失踪地点）はスキップ（肉球アイコンと重複するため）
+      if (index === 0) return;
+      
+      const timeLabel = index === pathCoordinates.length - 1 ? `${pathCoordinates.length - 1}時間後` : 
                        `${index}時間後`;
       
-      const marker = new window.google.maps.Marker({
+      const markerResult = await createMapMarker({
         position: coord,
         map,
         label: {
@@ -580,15 +591,14 @@ export default function IntegratedBehaviorMap() {
         icon: {
           path: window.google.maps.SymbolPath.CIRCLE,
           scale: index === pathCoordinates.length - 1 ? 10 : 8,
-          fillColor: index === 0 ? '#FF5722' : 
-                     index === pathCoordinates.length - 1 ? '#4CAF50' : 
+          fillColor: index === pathCoordinates.length - 1 ? '#2196F3' : 
                      '#FFC107',
           fillOpacity: 0.9,
           strokeColor: '#FFFFFF',
           strokeWeight: 2,
         },
-      });
-      markersRef.current.push(marker);
+      } as any);
+      markersRef.current.push(markerResult);
     });
 
     // 経路ライン
@@ -870,12 +880,8 @@ export default function IntegratedBehaviorMap() {
                 <Typography variant="caption">マッチ済みペット</Typography>
               </Box>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PetsIcon sx={{ fontSize: 16, color: '#ff5722' }} />
-                <Typography variant="caption">あなたの迷子ペット</Typography>
-              </Box>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <PetsIcon sx={{ fontSize: 16, color: '#f44336', opacity: 0.6 }} />
-                <Typography variant="caption">他の迷子ペット</Typography>
+                <PetsIcon sx={{ fontSize: 16, color: '#4CAF50' }} />
+                <Typography variant="caption">迷子ペット</Typography>
               </Box>
               {predictionResult && (
                 <>

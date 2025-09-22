@@ -5,8 +5,6 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useNotifications } from '@/lib/contexts/notification-context';
-import { signOut } from 'firebase/auth';
-import { auth } from '@/lib/firebase/config';
 
 
 export default function Header() {
@@ -16,7 +14,7 @@ export default function Header() {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const userMenuRef = useRef<HTMLDivElement>(null);
   const notificationMenuRef = useRef<HTMLDivElement>(null);
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const { unreadCount, chatNotifications, markAsRead } = useNotifications();
 
 
@@ -46,7 +44,7 @@ export default function Header() {
   
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await logout();
       setShowUserMenu(false);
     } catch (error) {
       console.error('Logout error:', error);

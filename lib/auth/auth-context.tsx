@@ -9,12 +9,14 @@ import {
   onAuthStateChanged 
 } from 'firebase/auth';
 import { auth } from '@/lib/firebase/config';
+import { isGuestUser } from '@/lib/utils/guest-user';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   signInWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  setUser: (user: User | null) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -24,6 +26,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // ゲストユーザーのチェック
+    const guestUserData = localStorage.getItem('guestUser');
+    if (guestUserData) {
+      try {
+        const guestUser = JSON.parse(guestUserData);
+        setUser(guestUser as User);
+        setLoading(false);
+        return;
+      } catch (e) {
+        localStorage.removeItem('guestUser');
+      }
+    }
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setUser(user);
       setLoading(false);
@@ -44,7 +59,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const logout = async () => {
     try {
-      await signOut(auth);
+      // ゲストユーザーの場合
+      if (user && isGuestUser(user.uid)) {
+        localStorage.removeItem('guestUser');
+        setUser(null);
+        // ログインページへリダイレクト
+        window.location.href = '/login';
+      } else {
+        await signOut(auth);
+      }
     } catch (error) {
       console.error('Error signing out:', error);
       throw error;
@@ -55,7 +78,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     loading,
     signInWithGoogle,
-    logout
+    logout,
+    setUser
   };
 
   return (
