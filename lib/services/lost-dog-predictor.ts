@@ -6,8 +6,11 @@ import type {
   PredictionTimeFrame,
   DangerZone,
   PointOfInterest,
-  PredictionArea
+  PredictionArea,
+  WeatherCondition
 } from '@/lib/types/behavior-predictor';
+import { WeatherService } from '@/lib/services/weather-service';
+import { EnvironmentalAnalysis } from '@/lib/utils/environmental-analysis';
 
 // 文献データに基づく時間別移動距離（メートル）
 const TIME_BASED_RADIUS: Record<number, { median: number; range: [number, number] }> = {
@@ -50,6 +53,7 @@ const PERSONALITY_PATTERNS = {
 
 export class LostDogPredictor {
   private petProfile: PetProfile;
+  private currentWeather: WeatherCondition | null = null;
   private environment: 'urban' | 'suburban' | 'rural';
   private weatherCondition: 'clear' | 'rain' | 'storm' | 'snow';
 
@@ -65,13 +69,22 @@ export class LostDogPredictor {
     
     // 時間経過を計算
     const hoursSinceLost = this.calculateHoursSinceLost();
+    
+    // 最後に目撃された位置の天気情報を取得
+    if (this.petProfile.lastSeenLocation) {
+      const weatherService = WeatherService.getInstance();
+      this.currentWeather = await weatherService.getWeatherCondition(
+        this.petProfile.lastSeenLocation.lat,
+        this.petProfile.lastSeenLocation.lng
+      );
+    }
 
     for (const timeFrame of timeFrames) {
       const searchRadius = this.calculateScientificSearchRadius(timeFrame.hours);
       const predictionAreas = this.generatePredictionAreas(timeFrame, searchRadius);
       const dangerZones = await this.identifyDangerZones(predictionAreas);
       const pointsOfInterest = await this.findPointsOfInterest(predictionAreas);
-      const heatmapData = this.generateScientificHeatmap(timeFrame, searchRadius);
+      const heatmapData = await this.generateEnhancedScientificHeatmap(timeFrame, searchRadius);
 
       allHeatmapData.push(...heatmapData);
 
@@ -260,54 +273,34 @@ export class LostDogPredictor {
     }
   }
 
-  private generateScientificHeatmap(timeFrame: PredictionTimeFrame, searchRadius: number): HeatmapData[] {
-    const heatmapData: HeatmapData[] = [];
+  private async generateEnhancedScientificHeatmap(
+    timeFrame: PredictionTimeFrame, 
+    searchRadius: number
+  ): Promise<HeatmapData[]> {
     const center = this.petProfile.lastSeenLocation;
-    const numPoints = 100;
     
-    // 中心点は最高確率
-    heatmapData.push({
-      location: center,
-      weight: 1.0,
+    // 環境要因を考慮した詳細なヒートマップを生成
+    const { enhancedHeatmapGenerator } = await import('@/lib/services/enhanced-heatmap-generator');
+    
+    const heatmapData = await enhancedHeatmapGenerator.generateDetailedHeatmap({
+      center: center,
+      radius: searchRadius / 1000, // メートルをキロメートルに変換
+      gridResolution: 50,
+      zoomLevel: 14,
+      timeElapsed: timeFrame.hours,
+      petSize: this.petProfile.size,
+      petType: this.petProfile.species,
+      weather: this.currentWeather || undefined,
+      timeOfDay: EnvironmentalAnalysis.getTimeOfDay(),
+      dangerZones: EnvironmentalAnalysis.identifyDangerZones(
+        center,
+        searchRadius / 1000
+      ),
+      terrainInfo: await EnvironmentalAnalysis.analyzeTerrain(
+        center,
+        searchRadius / 1000
+      )
     });
-    
-    // 文献に基づく確率分布
-    for (let i = 0; i < numPoints; i++) {
-      const angle = (Math.PI * 2 * i) / numPoints;
-      let distance: number;
-      let weight: number;
-      
-      const rand = Math.random();
-      
-      if (timeFrame.hours <= 24) {
-        // 24時間以内の分布（文献データ）
-        if (rand < 0.5) {
-          // 50%が402m以内
-          distance = Math.random() * 402;
-          weight = 0.9;
-        } else if (rand < 0.7) {
-          // 次の20%が1.6km以内
-          distance = 402 + Math.random() * 1200;
-          weight = 0.7;
-        } else if (rand < 0.93) {
-          // 次の23%が広範囲
-          distance = 1600 + Math.random() * (searchRadius - 1600);
-          weight = 0.4;
-        } else {
-          // 7%は発見されない範囲
-          distance = searchRadius * (0.8 + Math.random() * 0.4);
-          weight = 0.1;
-        }
-      } else {
-        // 時間経過とともに拡散
-        const timeDecay = Math.exp(-timeFrame.hours / 48);
-        distance = Math.random() * searchRadius * (1 - timeDecay * 0.5);
-        weight = Math.max(0.1, timeDecay);
-      }
-      
-      const location = this.calculateNewPosition(center, distance / 1000, angle);
-      heatmapData.push({ location, weight });
-    }
     
     // 性格による集中エリアを追加
     this.addPersonalityHotspots(heatmapData, center, searchRadius);
@@ -391,6 +384,29 @@ export class LostDogPredictor {
 
   private generateScientificRecommendations(hoursSinceLost: number): string[] {
     const recommendations: string[] = [];
+    
+    // 天気による推奨事項を追加
+    if (this.currentWeather) {
+      const weatherService = WeatherService.getInstance();
+      const weatherImpact = weatherService.getWeatherImpactOnBehavior(
+        this.currentWeather,
+        this.petProfile.species
+      );
+      
+      if (weatherImpact.description) {
+        recommendations.push(weatherImpact.description);
+      }
+      
+      if (this.currentWeather.precipitation) {
+        recommendations.push('📍 雨宿りできる場所（軒下、橋の下、車の下など）を重点的に確認');
+      }
+      
+      if (this.currentWeather.temperature < 10) {
+        recommendations.push('🌡️ 暖かい場所（日向、換気口付近、建物の入口）を確認');
+      } else if (this.currentWeather.temperature > 30) {
+        recommendations.push('🌡️ 涼しい場所（日陰、水辺、地下駐車場）を確認');
+      }
+    }
     
     // 時間帯別推奨事項（文献データに基づく）
     if (hoursSinceLost <= 24) {

@@ -1,6 +1,8 @@
 import { ADKAgent, ADKContext } from '../agent-framework';
 import { getVertexAIClient } from '../vertex-ai-client';
 import { PetInfo, SearchResult } from '@/types/agents';
+import { EnvironmentalAnalysis, EnvironmentalFactors } from '@/lib/utils/environmental-analysis';
+import { DangerZone, HeatmapData, WeatherCondition } from '@/types/behavior-predictor';
 
 export class ADKBehaviorPredictorAgent extends ADKAgent {
   constructor() {
@@ -54,6 +56,9 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
       const lastSeenLocation = input.lastSeenLocation;
       const timeElapsed = this.calculateTimeElapsed(input.lostDate);
       
+      // 環境要因を取得
+      const environmentalFactors = await this.getEnvironmentalFactors(lastSeenLocation);
+      
       const behaviorAnalysis = await this.analyzeBehavior({
         species: petInfo.species,
         breed: petInfo.breed,
@@ -66,19 +71,21 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
         behaviorProfile: behaviorAnalysis,
         lastSeenLocation,
         timeElapsed,
-        environmentalFactors: input.environmentalFactors,
+        environmentalFactors: environmentalFactors,
       });
 
       const hideoutLocations = await this.identifyHideouts({
         petProfile: behaviorAnalysis,
         searchArea: movementPrediction.searchArea,
-        weatherConditions: input.weatherConditions,
+        weatherConditions: environmentalFactors.weather,
       });
 
-      const behaviorMap = this.generateBehaviorMap(
+      const behaviorMap = this.generateEnhancedBehaviorMap(
         behaviorAnalysis,
         movementPrediction,
-        hideoutLocations
+        hideoutLocations,
+        environmentalFactors,
+        timeElapsed
       );
 
       return {
@@ -462,22 +469,62 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
     return Math.min(probability, 0.95);
   }
 
-  private generateBehaviorMap(
+  private generateEnhancedBehaviorMap(
     behaviorAnalysis: any,
     movementPrediction: any,
-    hideoutLocations: any[]
+    hideoutLocations: any[],
+    environmentalFactors: EnvironmentalFactors,
+    timeElapsed: number
   ): any {
+    // ヒートマップデータを生成
+    const heatmapData = EnvironmentalAnalysis.generateEnhancedHeatmap(
+      movementPrediction.searchArea.center,
+      movementPrediction.searchArea.radius,
+      behaviorAnalysis.species,
+      timeElapsed
+    );
+    
+    // 環境リスクスコアを計算
+    const riskScore = EnvironmentalAnalysis.calculateEnvironmentalRisk(
+      environmentalFactors.weather,
+      environmentalFactors.timeOfDay,
+      environmentalFactors.dangerZones
+    );
+    
+    // 移動確率を各地点で計算
+    const enhancedLocations = movementPrediction.locations.map((location: any) => ({
+      ...location,
+      adjustedProbability: EnvironmentalAnalysis.calculateMovementProbability(
+        location,
+        behaviorAnalysis.species,
+        environmentalFactors.weather,
+        environmentalFactors.timeOfDay,
+        environmentalFactors.terrain,
+        environmentalFactors.dangerZones
+      )
+    }));
+    
     return {
       centerPoint: movementPrediction.searchArea.center,
       searchRadius: movementPrediction.searchArea.radius,
       behaviorZones: [
         {
           type: 'high-probability',
-          locations: movementPrediction.locations.filter((l: any) => l.probability > 0.7),
+          locations: enhancedLocations.filter((l: any) => l.adjustedProbability > 0.7),
         },
         {
           type: 'hideout-spots',
           locations: hideoutLocations.slice(0, 5),
+        },
+        {
+          type: 'danger-zones',
+          locations: environmentalFactors.dangerZones,
+        },
+        {
+          type: 'safe-zones',
+          locations: environmentalFactors.terrain
+            .filter(t => t.shelterQuality > 0.7)
+            .map(t => ({ ...t.location, type: t.type, quality: t.shelterQuality })),
         },
         {
           type: 'movement-corridor',
@@ -488,6 +535,14 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
         },
       ],
       timeBasedActivity: behaviorAnalysis.activityPattern,
+      heatmapData,
+      environmentalFactors,
+      riskScore,
+      recommendations: this.generateEnvironmentalRecommendations(
+        behaviorAnalysis,
+        environmentalFactors,
+        riskScore
+      ),
     };
   }
 
@@ -555,5 +610,104 @@ export class ADKBehaviorPredictorAgent extends ADKAgent {
     }
     
     return Math.min(confidence, 0.9);
+  }
+  
+  // 環境要因を取得
+  private async getEnvironmentalFactors(location: { lat: number; lng: number }): Promise<EnvironmentalFactors> {
+    const searchRadius = 5; // km
+    
+    // 各環境データを並行して取得
+    const [weather, terrain, dangerZones] = await Promise.all([
+      EnvironmentalAnalysis.getWeatherCondition(location.lat, location.lng),
+      EnvironmentalAnalysis.analyzeTerrain(location, searchRadius),
+      Promise.resolve(EnvironmentalAnalysis.identifyDangerZones(location, searchRadius))
+    ]);
+    
+    const timeOfDay = EnvironmentalAnalysis.getTimeOfDay();
+    
+    return {
+      weather,
+      timeOfDay,
+      terrain,
+      dangerZones
+    };
+  }
+  
+  // 環境を考慮した推奨事項を生成
+  private generateEnvironmentalRecommendations(
+    behaviorAnalysis: any,
+    environmentalFactors: EnvironmentalFactors,
+    riskScore: number
+  ): string[] {
+    const recommendations = [];
+    
+    // 天候に基づく推奨事項
+    if (environmentalFactors.weather.precipitation) {
+      recommendations.push('雨天のため、橋の下や軒下など雨をしのげる場所を重点的に確認');
+      if (behaviorAnalysis.species === 'cat') {
+        recommendations.push('猫は雨を避けるため、建物の近くに隠れている可能性が高い');
+      }
+    }
+    
+    if (environmentalFactors.weather.temperature < 10) {
+      recommendations.push('低温のため、暖かい場所（日向、暖房設備の近く）を確認');
+    } else if (environmentalFactors.weather.temperature > 30) {
+      recommendations.push('高温のため、日陰や水源の近くを重点的に捜索');
+    }
+    
+    // 時間帯に基づく推奨事項
+    switch (environmentalFactors.timeOfDay.period) {
+      case 'dawn':
+      case 'evening':
+        recommendations.push('ペットが最も活動的な時間帯 - 移動している可能性が高い');
+        break;
+      case 'night':
+        if (behaviorAnalysis.species === 'cat') {
+          recommendations.push('猫は夜行性 - 活発に動いている可能性あり');
+        } else {
+          recommendations.push('犬は夜間休息している可能性が高い - 隠れ場所を重点確認');
+        }
+        recommendations.push('懐中電灯を使用し、光る目を探す');
+        break;
+      case 'afternoon':
+        if (environmentalFactors.weather.temperature > 25) {
+          recommendations.push('暑い時間帯 - 日陰で休んでいる可能性が高い');
+        }
+        break;
+    }
+    
+    // 危険エリアに関する警告
+    if (riskScore > 7) {
+      recommendations.push('⚠️ 高リスクエリア - 危険地帯を優先的に確認');
+      recommendations.push('緊急性が高いため、複数人での捜索を推奨');
+    }
+    
+    const highDangerZones = environmentalFactors.dangerZones
+      .filter(z => z.dangerLevel === 'high')
+      .map(z => z.type);
+    
+    if (highDangerZones.includes('highway')) {
+      recommendations.push('⚠️ 高速道路付近 - 交通安全に十分注意');
+    }
+    if (highDangerZones.includes('railway')) {
+      recommendations.push('⚠️ 線路付近 - 列車の運行に注意');
+    }
+    if (highDangerZones.includes('water')) {
+      recommendations.push('⚠️ 水域付近 - 特に小型ペットは溺れる危険あり');
+    }
+    
+    // 地形に基づく推奨事項
+    const safeSpots = environmentalFactors.terrain
+      .filter(t => t.shelterQuality > 0.7)
+      .map(t => t.type);
+    
+    if (safeSpots.includes('park')) {
+      recommendations.push('公園は隠れ場所が多い - 茂み、ベンチ下、遊具周辺を確認');
+    }
+    if (safeSpots.includes('forest')) {
+      recommendations.push('森林エリア - 足跡や毛を探しながら慎重に捜索');
+    }
+    
+    return recommendations;
   }
 }

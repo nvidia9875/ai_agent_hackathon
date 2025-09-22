@@ -1,6 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+export const dynamic = 'force-dynamic';
+
+import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import {
   Box,
@@ -87,7 +89,7 @@ interface ChatUser {
   online?: boolean;
 }
 
-export default function ChatPage() {
+function ChatPageContent() {
   const [chatRooms, setChatRooms] = useState<ChatRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<ChatRoom | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -827,5 +829,17 @@ export default function ChatPage() {
         </DialogActions>
       </Dialog>
     </Box>
+  );
+}
+
+export default function ChatPage() {
+  return (
+    <Suspense fallback={
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <CircularProgress />
+      </Box>
+    }>
+      <ChatPageContent />
+    </Suspense>
   );
 }

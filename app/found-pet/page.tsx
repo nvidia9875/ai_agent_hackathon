@@ -1,8 +1,10 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 import {
   Box,
   Typography,
@@ -42,7 +44,7 @@ import {
   CheckCircle as CheckCircleIcon
 } from '@mui/icons-material';
 
-const Sidebar = dynamic(() => import('@/components/Sidebar'), { 
+const Sidebar = dynamicImport(() => import('@/components/Sidebar'), { 
   ssr: false,
   loading: () => (
     <Box sx={{ 

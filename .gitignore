@@ -29,6 +29,7 @@ serviceAccountKey.json
 # misc
 .DS_Store
 *.pem
+todo.txt
 
 # debug
 npm-debug.log*

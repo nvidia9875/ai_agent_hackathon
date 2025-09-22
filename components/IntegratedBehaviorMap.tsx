@@ -1124,41 +1124,6 @@ export default function IntegratedBehaviorMap() {
 
             {isAnalyzing && <LinearProgress sx={{ mt: 2 }} />}
 
-            {/* Prediction Results */}
-            {predictionResult && (
-              <Box sx={{ mt: 'auto', pt: 2, borderTop: 1, borderColor: 'divider' }}>
-                <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold' }}>
-                  🎯 予測結果
-                </Typography>
-                <Paper elevation={2} sx={{ p: 2, bgcolor: 'success.50' }}>
-                  <Typography variant="subtitle2" gutterBottom>推奨捜索戦略</Typography>
-                  <Stack spacing={1}>
-                    {predictionResult.recommendations.slice(0, 3).map((rec, index) => (
-                      <Chip 
-                        key={index} 
-                        label={rec} 
-                        color="primary" 
-                        variant="filled"
-                        sx={{ justifyContent: 'flex-start' }}
-                      />
-                    ))}
-                  </Stack>
-                  <Box sx={{ mt: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <LinearProgress 
-                      variant="determinate" 
-                      value={predictionResult.confidenceScore * 100} 
-                      sx={{ flexGrow: 1, height: 8, borderRadius: 4 }}
-                    />
-                    <Typography variant="body2" color="text.secondary" sx={{ minWidth: 50 }}>
-                      {(predictionResult.confidenceScore * 100).toFixed(0)}%
-                    </Typography>
-                  </Box>
-                  <Typography variant="caption" color="text.secondary">
-                    AI信頼度スコア
-                  </Typography>
-                </Paper>
-              </Box>
-            )}
           </>
         )}
       </Paper>

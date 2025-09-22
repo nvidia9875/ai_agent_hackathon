@@ -4,7 +4,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 import { GoogleMap, useJsApiLoader, Marker, Circle, InfoWindow, Polyline } from '@react-google-maps/api';
 import { LostDogPredictor } from '@/lib/services/lost-dog-predictor';
 import ScientificHeatMap, { HeatMapControls } from './ScientificHeatMap';
-import type { PetProfile, PredictionResult, SearchZone } from '@/lib/types/behavior-predictor';
+import type { PetProfile, PredictionResult, SearchZone, WeatherCondition } from '@/lib/types/behavior-predictor';
+import { WeatherDisplay } from './WeatherDisplay';
 
 const libraries: ("places" | "drawing" | "geometry" | "visualization")[] = ['places', 'visualization'];
 
@@ -33,6 +34,7 @@ export default function LostDogSearchMap({ petProfile, onLocationSelect }: LostD
   const [heatmapOpacity, setHeatmapOpacity] = useState(0.6);
   const [currentLocation, setCurrentLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
+  const [currentWeather, setCurrentWeather] = useState<WeatherCondition | null>(null);
 
   const { isLoaded, loadError } = useJsApiLoader({
     googleMapsApiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY!,
@@ -249,6 +251,16 @@ export default function LostDogSearchMap({ petProfile, onLocationSelect }: LostD
 
       {/* コントロールパネル */}
       <div className="absolute top-4 right-4 space-y-4">
+        {/* 天気情報表示 */}
+        {petProfile?.lastSeenLocation && (
+          <WeatherDisplay
+            lat={petProfile.lastSeenLocation.lat}
+            lng={petProfile.lastSeenLocation.lng}
+            onWeatherLoad={setCurrentWeather}
+            className="max-w-sm"
+          />
+        )}
+        
         {/* ヒートマップコントロール */}
         <HeatMapControls
           visible={showHeatmap}

@@ -3,7 +3,8 @@
  * グリッドベースのアプローチで滑らかなヒートマップを生成
  */
 
-import { HeatmapData } from '@/lib/types/behavior-predictor';
+import { HeatmapData, WeatherCondition, DangerZone } from '@/lib/types/behavior-predictor';
+import { EnvironmentalAnalysis, TimeOfDay, TerrainInfo } from '@/lib/utils/environmental-analysis';
 
 export interface EnhancedHeatmapOptions {
   center: google.maps.LatLngLiteral;
@@ -12,7 +13,12 @@ export interface EnhancedHeatmapOptions {
   zoomLevel: number;
   timeElapsed: number; // 経過時間（時間）
   petSize: 'small' | 'medium' | 'large';
+  petType?: 'dog' | 'cat';
   terrainType?: string;
+  weather?: WeatherCondition;
+  timeOfDay?: TimeOfDay;
+  dangerZones?: DangerZone[];
+  terrainInfo?: TerrainInfo[];
 }
 
 export interface GridPoint {
@@ -30,9 +36,24 @@ export class EnhancedHeatmapGenerator {
   /**
    * ズームレベルに応じた詳細なヒートマップデータを生成
    */
-  generateDetailedHeatmap(options: EnhancedHeatmapOptions): HeatmapData[] {
+  async generateDetailedHeatmap(options: EnhancedHeatmapOptions): Promise<HeatmapData[]> {
     // ズームレベルに応じてグリッドサイズを動的に調整
     const gridSize = this.calculateOptimalGridSize(options.zoomLevel);
+    
+    // 環境要因を取得（提供されていない場合）
+    if (!options.weather || !options.timeOfDay) {
+      const weather = await EnvironmentalAnalysis.getWeatherCondition(options.center.lat, options.center.lng);
+      const timeOfDay = EnvironmentalAnalysis.getTimeOfDay();
+      options = { ...options, weather, timeOfDay };
+    }
+    
+    if (!options.dangerZones) {
+      options.dangerZones = EnvironmentalAnalysis.identifyDangerZones(options.center, options.radius);
+    }
+    
+    if (!options.terrainInfo) {
+      options.terrainInfo = await EnvironmentalAnalysis.analyzeTerrain(options.center, options.radius);
+    }
     
     // グリッドポイントを生成
     const gridPoints = this.generateGridPoints(options, gridSize);
@@ -131,7 +152,7 @@ export class EnhancedHeatmapGenerator {
     options: EnhancedHeatmapOptions
   ): number {
     const distanceKm = distanceInMeters / 1000;
-    const { timeElapsed, petSize } = options;
+    const { timeElapsed, petSize, petType = 'dog' } = options;
     
     // 研究データに基づく確率分布
     // 50%が402.3m以内、70%が1.6km以内で発見
@@ -161,8 +182,15 @@ export class EnhancedHeatmapGenerator {
     const terrainFactor = options.terrainType ? 
       this.calculateTerrainFactor(options.terrainType) : 1.0;
     
+    // 天候による調整
+    const weatherFactor = this.calculateWeatherFactor(options.weather, petType);
+    
+    // 時間帯による調整
+    const timeOfDayFactor = this.calculateTimeOfDayFactor(options.timeOfDay, petType);
+    
     // 最終確率計算
-    const finalProbability = baseProbability * timeFactor * sizeFactor * terrainFactor;
+    const finalProbability = baseProbability * timeFactor * sizeFactor * 
+                            terrainFactor * weatherFactor * timeOfDayFactor;
     
     // 0.01〜1.0の範囲に正規化
     return Math.max(0.01, Math.min(1.0, finalProbability));
@@ -230,7 +258,33 @@ export class EnhancedHeatmapGenerator {
     // 中心に近いほど重みを増加
     const distanceBonus = Math.max(0, 1 - (distanceInMeters / (options.radius * 1000)));
     
-    return baseWeight * (1 + distanceBonus * 0.5);
+    // 危険エリアの影響を考慮
+    let dangerPenalty = 1.0;
+    if (options.dangerZones) {
+      const point = { 
+        lat: options.center.lat + (distanceInMeters / 111320),
+        lng: options.center.lng 
+      };
+      
+      options.dangerZones.forEach(zone => {
+        const zoneDist = this.calculateDistance(point, zone.location);
+        if (zoneDist < zone.radius) {
+          switch (zone.dangerLevel) {
+            case 'high':
+              dangerPenalty *= 0.3;
+              break;
+            case 'medium':
+              dangerPenalty *= 0.5;
+              break;
+            case 'low':
+              dangerPenalty *= 0.7;
+              break;
+          }
+        }
+      });
+    }
+    
+    return baseWeight * (1 + distanceBonus * 0.5) * dangerPenalty;
   }
 
   /**
@@ -348,6 +402,78 @@ export class EnhancedHeatmapGenerator {
     return enhanced;
   }
 
+  /**
+   * 天候による確率調整
+   */
+  private calculateWeatherFactor(
+    weather: WeatherCondition | undefined,
+    petType: 'dog' | 'cat'
+  ): number {
+    if (!weather) return 1.0;
+    
+    let factor = 1.0;
+    
+    // 降水の影響
+    if (weather.precipitation) {
+      factor *= petType === 'cat' ? 0.6 : 0.8; // 猫は特に雨を嫌う
+    }
+    
+    // 天候条件の影響
+    switch (weather.condition) {
+      case 'stormy':
+        factor *= 0.5; // 嵐では大幅に活動低下
+        break;
+      case 'rainy':
+        factor *= petType === 'cat' ? 0.7 : 0.85;
+        break;
+      case 'snowy':
+        factor *= 0.7; // 雪でも活動低下
+        break;
+      case 'sunny':
+        if (weather.temperature > 30) {
+          factor *= 0.8; // 暑すぎる場合
+        }
+        break;
+    }
+    
+    // 極端な気温の影響
+    if (weather.temperature < 5) {
+      factor *= 0.7;
+    } else if (weather.temperature > 35) {
+      factor *= 0.6;
+    }
+    
+    // 強風の影響
+    if (weather.windSpeed > 15) {
+      factor *= 0.85;
+    }
+    
+    return factor;
+  }
+  
+  /**
+   * 時間帯による確率調整
+   */
+  private calculateTimeOfDayFactor(
+    timeOfDay: TimeOfDay | undefined,
+    petType: 'dog' | 'cat'
+  ): number {
+    if (!timeOfDay) return 1.0;
+    
+    switch (timeOfDay.period) {
+      case 'dawn':
+        return petType === 'cat' ? 1.3 : 1.1; // 夜明けは活発
+      case 'morning':
+        return 1.0;
+      case 'afternoon':
+        return 0.9; // 午後は少し活動低下
+      case 'evening':
+        return petType === 'cat' ? 1.4 : 1.2; // 夕方は活発
+      case 'night':
+        return petType === 'cat' ? 1.2 : 0.6; // 猫は夜行性
+    }
+  }
+  
   /**
    * 2点間の距離を計算（メートル）
    */

@@ -1,7 +1,9 @@
 'use client';
 
+export const dynamic = 'force-dynamic';
+
 import { useState, useEffect } from 'react';
-import dynamic from 'next/dynamic';
+import dynamicImport from 'next/dynamic';
 import { Pet } from '@/types/pet';
 import { collection, getDocs, query, where, orderBy, limit, onSnapshot, Timestamp } from 'firebase/firestore';
 import { db } from '@/lib/firebase/config';
@@ -42,7 +44,7 @@ import {
   NotificationImportant as AlertIcon
 } from '@mui/icons-material';
 
-const Sidebar = dynamic(() => import('@/components/Sidebar'), { 
+const Sidebar = dynamicImport(() => import('@/components/Sidebar'), { 
   ssr: false 
 });
 
