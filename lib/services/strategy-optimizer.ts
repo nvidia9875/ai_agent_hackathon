@@ -3,8 +3,26 @@
  * リアルタイムで捜索戦略を動的に調整
  */
 
-import { SearchZone, SearchStrategy } from '@/lib/agents/SearchCoordinatorAgent';
 import { Pet } from '@/types/pet';
+
+export interface SearchZone {
+  id: string;
+  center: { lat: number; lng: number };
+  radius: number;
+  priority: 'high' | 'medium' | 'low';
+  probability: number;
+  recommendedTime?: string;
+  notes?: string;
+}
+
+export interface SearchStrategy {
+  id: string;
+  searchZones: SearchZone[];
+  priorityOrder: string[];
+  estimatedDuration: number;
+  resourceAllocation: Record<string, number>;
+  confidence: number;
+}
 
 export interface OptimizationContext {
   currentStrategy: SearchStrategy;

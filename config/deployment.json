@@ -60,23 +60,6 @@
         },
         "service_account": "${BEHAVIOR_PREDICTOR_SERVICE_ACCOUNT}",
         "ingress": "internal"
-      },
-      "search_coordinator_worker": {
-        "name": "pawmate-search-coordinator-worker",
-        "image": "gcr.io/${GOOGLE_CLOUD_PROJECT_ID}/pawmate-search-coordinator:latest",
-        "port": 8080,
-        "memory": "1Gi",
-        "cpu": "500m",
-        "min_instances": 1,
-        "max_instances": 3,
-        "timeout": "300s",
-        "concurrency": 20,
-        "environment_variables": {
-          "AGENT_TYPE": "search-coordinator",
-          "WORKER_MODE": "true"
-        },
-        "service_account": "${SEARCH_COORDINATOR_SERVICE_ACCOUNT}",
-        "ingress": "internal"
       }
     }
   },
@@ -131,11 +114,6 @@
         "name": "behavior-predictor-tasks",
         "message_retention": "7d",
         "message_ordering": true
-      },
-      {
-        "name": "coordination-results",
-        "message_retention": "30d",
-        "message_ordering": false
       }
     ],
     "subscriptions": [
@@ -157,16 +135,6 @@
         "retry_policy": {
           "minimum_backoff": "10s",
           "maximum_backoff": "600s"
-        }
-      },
-      {
-        "name": "search-coordinator-sub",
-        "topic": "coordination-results",
-        "ack_deadline": "60s",
-        "message_ordering": false,
-        "retry_policy": {
-          "minimum_backoff": "5s",
-          "maximum_backoff": "300s"
         }
       }
     ]
@@ -362,14 +330,6 @@
           "roles": [
             "roles/aiplatform.user",
             "roles/pubsub.subscriber"
-          ]
-        },
-        {
-          "name": "pawmate-search-coordinator",
-          "roles": [
-            "roles/firestore.user",
-            "roles/pubsub.admin",
-            "roles/aiplatform.user"
           ]
         }
       ]

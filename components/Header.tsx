@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useNotifications } from '@/lib/contexts/notification-context';
 import { signOut } from 'firebase/auth';
@@ -60,9 +61,13 @@ export default function Header() {
         <div className="flex items-center justify-between h-14">
           {/* ロゴ・サイト名 */}
           <Link href="/" className="flex items-center space-x-2">
-            <svg className="w-8 h-8 text-blue-600" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M12 2C10.9 2 10 2.9 10 4C10 5.1 10.9 6 12 6C13.1 6 14 5.1 14 4C14 2.9 13.1 2 12 2M7 4C7 5.1 6.1 6 5 6C3.9 6 3 5.1 3 4C3 2.9 3.9 2 5 2C6.1 2 7 2.9 7 4M19 2C17.9 2 17 2.9 17 4C17 5.1 17.9 6 19 6C20.1 6 21 5.1 21 4C21 2.9 20.1 2 19 2M12 7C10.3 7 9 8.3 9 10C9 12 12 15.8 12 15.8S15 12 15 10C15 8.3 13.7 7 12 7M5.5 8C3.6 8 2 9.6 2 11.5C2 13 4.5 16.5 4.5 16.5S7 13 7 11.5C7 9.6 5.4 8 3.5 8H5.5M19.5 8H17.5C19.4 8 21 9.6 21 11.5C21 13 18.5 16.5 18.5 16.5S16 13 16 11.5C16 9.6 17.6 8 19.5 8M12 17C9 17 2 19 2 22H22C22 19 15 17 12 17Z"/>
-            </svg>
+            <Image 
+              src="/sitelogo.svg" 
+              alt="PawMate Logo" 
+              width={32} 
+              height={32}
+              className="text-blue-600"
+            />
             <span className="font-bold text-xl text-gray-900">PawMate</span>
           </Link>
 

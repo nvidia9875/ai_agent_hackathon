@@ -3,35 +3,6 @@
   "location": "us-central1",
   "agents": [
     {
-      "id": "search-coordinator-adk",
-      "name": "捜索統括エージェント",
-      "description": "迷子ペットの捜索戦略を立案し、他のエージェントと連携",
-      "model": "gemini-2.5-pro",
-      "version": "1.0.0",
-      "capabilities": [
-        "search_area_analysis",
-        "resource_coordination",
-        "strategy_optimization"
-      ],
-      "tools": [
-        {
-          "name": "analyze_area",
-          "type": "function",
-          "description": "捜索エリアを分析"
-        },
-        {
-          "name": "coordinate_agents",
-          "type": "function",
-          "description": "エージェント間の連携"
-        },
-        {
-          "name": "update_strategy",
-          "type": "function",
-          "description": "戦略の更新"
-        }
-      ]
-    },
-    {
       "id": "behavior-predictor-adk",
       "name": "ペット行動予測エージェント",
       "description": "ペットの行動パターンを分析し移動先を予測",

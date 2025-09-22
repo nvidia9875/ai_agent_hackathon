@@ -13,19 +13,17 @@ export async function GET(request: NextRequest) {
     // TODO: 各エージェントのヘルスチェック実装
     // 1. Visual Detective Agentのヘルス確認
     // 2. Behavior Predictor Agentのヘルス確認
-    // 3. Search Coordinator Agentのヘルス確認
+    // 3. システム全体の健康状態を判定
     // 4. システム全体の健康状態を判定
 
     const healthChecks = await Promise.allSettled([
       checkVisualDetectiveHealth(),
-      checkBehaviorPredictorHealth(),
-      checkSearchCoordinatorHealth()
+      checkBehaviorPredictorHealth()
     ]);
 
     const results = {
       visual_detective: extractHealthResult(healthChecks[0]),
-      behavior_predictor: extractHealthResult(healthChecks[1]),
-      search_coordinator: extractHealthResult(healthChecks[2])
+      behavior_predictor: extractHealthResult(healthChecks[1])
     };
 
     // 全体的なシステム状態を判定
@@ -116,38 +114,6 @@ async function checkBehaviorPredictorHealth(): Promise<any> {
       status: 'unhealthy',
       error: error instanceof Error ? error.message : 'Unknown error',
       agent_info: { type: 'behavior-predictor' }
-    };
-  }
-}
-
-/**
- * Search Coordinator Agentのヘルスチェック
- */
-async function checkSearchCoordinatorHealth(): Promise<any> {
-  try {
-    // TODO: Search Coordinator Agent特有のヘルスチェック
-    // 1. Pub/Sub通信の状態確認
-    // 2. Firestoreデータベースの接続確認
-    // 3. 他エージェントとの通信確認
-    // 4. ADKサービスの状態確認
-
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/agents/search-coordinator`, {
-      method: 'GET',
-      headers: { 'Content-Type': 'application/json' }
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-
-    const data = await response.json();
-    return data;
-
-  } catch (error) {
-    return {
-      status: 'unhealthy',
-      error: error instanceof Error ? error.message : 'Unknown error',
-      agent_info: { type: 'search-coordinator' }
     };
   }
 }

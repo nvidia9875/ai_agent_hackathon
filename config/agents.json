@@ -101,60 +101,6 @@
         "max_memory_usage_mb": 256,
         "success_rate_threshold": 0.92
       }
-    },
-    "search_coordinator": {
-      "name": "Search Coordinator Agent",
-      "description": "Multi-agent coordination and search strategy optimization",
-      "version": "1.0.0",
-      "enabled": true,
-      "max_concurrent_tasks": 5,
-      "retry_attempts": 2,
-      "timeout_seconds": 60,
-      "config": {
-        "adk": {
-          "endpoint": "${ADK_ENDPOINT}",
-          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
-          "coordination_model": "multi-agent-coordinator-v1"
-        },
-        "pubsub": {
-          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
-          "topics": {
-            "visual_detective_tasks": "visual-detective-tasks",
-            "behavior_predictor_tasks": "behavior-predictor-tasks",
-            "coordination_results": "coordination-results"
-          },
-          "subscriptions": {
-            "coordinator_sub": "search-coordinator-subscription"
-          },
-          "message_retention_hours": 24
-        },
-        "firestore": {
-          "project_id": "${GOOGLE_CLOUD_PROJECT_ID}",
-          "database": "(default)",
-          "collections": {
-            "search_cases": "search_cases",
-            "search_progress": "search_progress",
-            "search_events": "search_events"
-          }
-        },
-        "optimization": {
-          "strategy_optimization_algorithm": "genetic_algorithm",
-          "population_size": 50,
-          "generations": 100,
-          "mutation_rate": 0.1,
-          "crossover_rate": 0.7
-        },
-        "dashboard": {
-          "update_interval_seconds": 5,
-          "max_timeline_events": 100,
-          "chart_data_points": 50
-        }
-      },
-      "performance": {
-        "target_response_time_ms": 3000,
-        "max_memory_usage_mb": 512,
-        "success_rate_threshold": 0.98
-      }
     }
   },
   "communication": {

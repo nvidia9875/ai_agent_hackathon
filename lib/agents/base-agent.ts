@@ -6,7 +6,7 @@
 import { AgentResponse, TaskRequest, Confidence, APIConfig } from '@/types/agents';
 
 export abstract class BaseAgent {
-  protected agentType: 'visual-detective' | 'behavior-predictor' | 'search-coordinator';
+  protected agentType: 'visual-detective' | 'behavior-predictor';
   protected version: string;
   protected isInitialized: boolean = false;
   protected config: APIConfig;
@@ -18,7 +18,7 @@ export abstract class BaseAgent {
   };
 
   constructor(
-    agentType: 'visual-detective' | 'behavior-predictor' | 'search-coordinator',
+    agentType: 'visual-detective' | 'behavior-predictor',
     version: string = '1.0.0'
   ) {
     this.agentType = agentType;
