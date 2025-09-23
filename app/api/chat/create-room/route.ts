@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
       finderId, 
       ownerNickname, 
       finderNickname, 
-      petName 
+      petName,
+      matchingId 
     } = await request.json();
 
     const adminDb = getAdminFirestore();
@@ -39,6 +40,7 @@ export async function POST(request: NextRequest) {
       ownerNickname,
       finderNickname,
       petName,
+      matchingId: matchingId || null, // マッチングIDを追加
       participants: [ownerId, finderId], // クエリ用の配列
       createdAt: FieldValue.serverTimestamp(),
       lastMessageTime: FieldValue.serverTimestamp()

@@ -71,8 +71,23 @@ source .env
 
 # 4. Docker イメージのビルド
 echo ""
-echo_info "Docker イメージをビルド中..."
-docker build -t $IMAGE_NAME:latest .
+echo_info "Docker イメージをビルド中 (linux/amd64)..."
+docker buildx build --platform linux/amd64 -t $IMAGE_NAME:latest \
+    --build-arg NEXT_PUBLIC_GOOGLE_MAPS_API_KEY="$NEXT_PUBLIC_GOOGLE_MAPS_API_KEY" \
+    --build-arg NEXT_PUBLIC_FIREBASE_API_KEY="$NEXT_PUBLIC_FIREBASE_API_KEY" \
+    --build-arg NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN="$NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN" \
+    --build-arg NEXT_PUBLIC_FIREBASE_PROJECT_ID="$NEXT_PUBLIC_FIREBASE_PROJECT_ID" \
+    --build-arg NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET="$NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET" \
+    --build-arg NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID="$NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID" \
+    --build-arg NEXT_PUBLIC_FIREBASE_APP_ID="$NEXT_PUBLIC_FIREBASE_APP_ID" \
+    --build-arg NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID="$NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID" \
+    --build-arg NEXT_PUBLIC_OPENWEATHER_API_KEY="$NEXT_PUBLIC_OPENWEATHER_API_KEY" \
+    --build-arg FIREBASE_PRIVATE_KEY="$FIREBASE_PRIVATE_KEY" \
+    --build-arg FIREBASE_CLIENT_EMAIL="$FIREBASE_CLIENT_EMAIL" \
+    --build-arg VERTEX_AI_PROJECT_ID="$VERTEX_AI_PROJECT_ID" \
+    --build-arg VERTEX_AI_LOCATION="$VERTEX_AI_LOCATION" \
+    --load \
+    .
 if [ $? -ne 0 ]; then
     echo_error "Docker イメージのビルドに失敗しました"
     exit 1

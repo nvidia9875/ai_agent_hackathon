@@ -364,7 +364,8 @@ export default function PetMatchingCard() {
           finderId: finderId,
           ownerNickname: missingPetData.ownerNickname || '飼い主',
           finderNickname: foundPetData.finderNickname || '発見者',
-          petName: missingPetData.name || missingPetData.petName || 'ペット'
+          petName: missingPetData.name || missingPetData.petName || 'ペット',
+          matchingId: selectedMatch.id
         }),
       });
       

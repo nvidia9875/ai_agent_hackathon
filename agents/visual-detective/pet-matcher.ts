@@ -2,6 +2,7 @@ import { PetInfo, FoundPetInfo } from '@/types/pet';
 import { VisualAnalysisResult, PetMatchResult } from '@/types/agents';
 import { VisionAIClient } from './vision-ai-client';
 import { getBreedSimilarityScore } from '@/lib/config/dog-breeds';
+import { geminiModel } from '@/lib/config/gemini';
 
 export class PetMatcher {
   private visionClient: VisionAIClient;
@@ -123,7 +124,9 @@ export class PetMatcher {
     const typeMatch = this.matchPetType(missingPet, foundPet);
     const breedScore = this.calculateBreedScore(missingPet, foundPet);
     const sizeMatch = this.matchSize(missingPet, foundPet);
-    const colorMatch = this.matchColors(missingPet, foundPet);
+    const colorMatchResult = await this.matchColorsWithGemini(missingPet, foundPet);
+    const colorMatch = colorMatchResult.matchedColors;
+    const colorMatchScore = colorMatchResult.score;
     const locationProximity = this.calculateLocationProximity(missingPet, foundPet);
     const timeDifference = this.calculateTimeDifference(missingPet, foundPet);
 
@@ -132,7 +135,7 @@ export class PetMatcher {
     console.log(`  Type match: ${typeMatch}`);
     console.log(`  Breed similarity: ${Math.round(breedScore * 100)}%`);
     console.log(`  Size match: ${sizeMatch}`);
-    console.log(`  Color matches: ${colorMatch.length > 0 ? colorMatch.join(', ') : 'none'}`);
+    console.log(`  Color matches: ${colorMatch.length > 0 ? colorMatch.join(', ') : 'none'} (Score: ${Math.round(colorMatchScore)}%)`);
     console.log(`  Location proximity: ${locationProximity}%`);
     console.log(`  Time difference: ${timeDifference} days`);
 
@@ -150,7 +153,7 @@ export class PetMatcher {
         typeMatch: typeMatch ? 10 : 0,              // 10%
         breedMatch: breedWeight,                    // 30-40% (犬種マッチング最優先)
         sizeMatch: sizeMatch ? 8 : 0,               // 8%
-        colorMatch: colorMatch.length > 0 ? 7 : 0,  // 7%
+        colorMatch: colorMatchScore * 0.07,         // 7% (色のマッチングスコアをパーセンテージとして使用)
         locationProximity: locationProximity * 0.02, // 2%
         timeDifference: Math.max(0, 8 - timeDifference * 0.08) // 最大8%
       };
@@ -163,7 +166,7 @@ export class PetMatcher {
         typeMatch: typeMatch ? 20 : 0,              // 20% (基本情報重視)
         breedMatch: breedWeight,                    // 35-45% (犬種マッチング最優先)
         sizeMatch: sizeMatch ? 10 : 0,              // 10%
-        colorMatch: colorMatch.length > 0 ? 8 : 0,  // 8%
+        colorMatch: colorMatchScore * 0.08,         // 8% (色のマッチングスコアをパーセンテージとして使用)
         locationProximity: locationProximity * 0.02, // 2%
         timeDifference: Math.max(0, 5 - timeDifference * 0.05) // 最大5%
       };
@@ -390,20 +393,83 @@ export class PetMatcher {
   }
 
   /**
-   * 色のマッチング
+   * 色のマッチング（Gemini APIを使用）
    */
-  private matchColors(missingPet: PetInfo, foundPet: FoundPetInfo): string[] {
-    if (!foundPet.color || !missingPet.colors || missingPet.colors.length === 0) {
-      return [];
+  private async matchColorsWithGemini(missingPet: PetInfo, foundPet: FoundPetInfo): Promise<{ matchedColors: string[], score: number }> {
+    console.log(`[PetMatcher] Starting color matching with Gemini:`);
+    const missingColors = missingPet.colors?.join('、') || missingPet.color || '';
+    const foundColor = foundPet.color || '';
+    
+    console.log(`  Missing pet colors: ${missingColors || 'none'}`);
+    console.log(`  Found pet color: ${foundColor || 'none'}`);
+    
+    if (!missingColors || !foundColor) {
+      console.log(`[PetMatcher] Color data missing`);
+      return { matchedColors: [], score: 0 };
     }
     
-    const foundColors = foundPet.color.toLowerCase().split(/[,、\s]+/).filter(c => c.trim() !== '');
-    return missingPet.colors
-      .filter(color => color && color.trim() !== '')
-      .filter(color => 
-        foundColors.some(fc => fc.includes(color.toLowerCase()) || 
-                              color.toLowerCase().includes(fc))
+    try {
+      const prompt = `
+以下の2つのペットの毛色を比較し、一致度を0-100の数値で評価してください。
+色の名前が異なっても、実際の色が同じまたは似ている場合は高い一致度を付けてください。
+
+迷子ペットの毛色: ${missingColors}
+発見ペットの毛色: ${foundColor}
+
+例：
+- 「茶色」と「茶」→ 100（同じ色）  
+- 「茶色と白」と「茶色と白色」→ 100（同じ色の組み合わせ）
+- 「茶色と白」と「白茶」→ 100（同じ色の組み合わせ、順序違い）
+- 「ブラウン」と「茶色」→ 100（同じ色の異なる表現）
+- 「黒」と「黒と白」→ 60（部分的に一致）
+- 「白」と「クリーム」→ 70（似た色）
+- 「黒」と「茶色」→ 0（異なる色）
+
+数値のみを返してください。`;
+      
+      const result = await geminiModel.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text().trim();
+      const score = parseInt(text);
+      
+      if (!isNaN(score) && score >= 0 && score <= 100) {
+        console.log(`[PetMatcher] Gemini color match score: ${score}%`);
+        
+        // スコアに基づいてマッチした色を判定
+        let matchedColors: string[] = [];
+        if (score >= 60) {
+          // 部分一致以上の場合、色をリストアップ
+          if (missingPet.colors && missingPet.colors.length > 0) {
+            matchedColors = missingPet.colors.filter(c => c && c.trim() !== '');
+          }
+        }
+        
+        return { matchedColors, score };
+      }
+    } catch (error) {
+      console.error('[PetMatcher] Error using Gemini for color matching:', error);
+    }
+    
+    // フォールバック: 簡易的な色マッチング
+    console.log('[PetMatcher] Falling back to simple color matching');
+    const missingColorList = missingColors.toLowerCase().split(/[,、と\s]+/).filter(c => c);
+    const foundColorList = foundColor.toLowerCase().split(/[,、と\s]+/).filter(c => c);
+    
+    if (missingColorList.length === 0 || foundColorList.length === 0) {
+      return { matchedColors: [], score: 0 };
+    }
+    
+    const matchedColors = missingPet.colors?.filter(color => {
+      const normalizedColor = color.toLowerCase().trim();
+      return foundColorList.some(fc => 
+        fc.includes(normalizedColor) || normalizedColor.includes(fc)
       );
+    }) || [];
+    
+    const matchCount = matchedColors.length;
+    const score = Math.round((matchCount / Math.max(missingColorList.length, foundColorList.length)) * 100);
+    
+    return { matchedColors, score };
   }
 
   /**

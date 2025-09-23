@@ -33,12 +33,19 @@ import {
   Pets as PetsIcon,
   ArrowBack as ArrowBackIcon,
   Circle as CircleIcon,
-  CheckCircle as CheckCircleIcon
+  CheckCircle as CheckCircleIcon,
+  Close as CloseIcon
 } from '@mui/icons-material';
 import Sidebar from '@/components/Sidebar';
 import { useAuth } from '@/lib/auth/auth-context';
 import { useNotifications } from '@/lib/contexts/notification-context';
+import nextDynamic from 'next/dynamic';
 import { db } from '@/lib/firebase/config';
+
+const PetMatchingCard = nextDynamic(() => import('@/components/PetMatchingCard'), { 
+  ssr: false,
+  loading: () => <CircularProgress />
+});
 import {
   collection,
   query,
@@ -80,6 +87,7 @@ interface ChatRoom {
   canKeepTemporarily?: boolean;
   keepUntilDate?: string;
   currentLocation?: string;
+  matchingId?: string;
 }
 
 interface ChatUser {
@@ -106,6 +114,8 @@ function ChatPageContent() {
   }>({});
   const [resolveModalOpen, setResolveModalOpen] = useState(false);
   const [resolving, setResolving] = useState(false);
+  const [showMatchingModal, setShowMatchingModal] = useState(false);
+  const [currentMatchingId, setCurrentMatchingId] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -148,6 +158,11 @@ function ChatPageContent() {
           }
         }
         
+        // マッチングIDを取得
+        if (roomData.matchingId) {
+          room.matchingId = roomData.matchingId;
+        }
+        
         // 未読メッセージ数を取得
         const unreadQuery = query(
           collection(db, 'chatRooms', docSnap.id, 'messages'),
@@ -176,7 +191,17 @@ function ChatPageContent() {
 
   // 選択されたルームのメッセージを取得
   useEffect(() => {
-    if (!selectedRoom) return;
+    if (!selectedRoom) {
+      setCurrentMatchingId(null);
+      return;
+    }
+    
+    // マッチングIDがチャットルームに保存されている場合はセット
+    if (selectedRoom.matchingId) {
+      setCurrentMatchingId(selectedRoom.matchingId);
+    } else {
+      setCurrentMatchingId(null);
+    }
     
     // 選択されたルームのペット画像とステータス情報を取得
     setPetImage(selectedRoom.petImage || null);
@@ -193,6 +218,13 @@ function ChatPageContent() {
         
         if (!matchesSnapshot.empty) {
           const matchData = matchesSnapshot.docs[0].data();
+          const matchingId = matchesSnapshot.docs[0].id;
+          
+          // マッチングIDをセット（チャットルームに保存されていない場合のため）
+          if (!selectedRoom.matchingId && matchingId) {
+            setCurrentMatchingId(matchingId);
+          }
+          
           const foundPetId = matchData.foundPetId;
           
           if (foundPetId) {
@@ -368,7 +400,7 @@ function ChatPageContent() {
       left: 0,
       right: 0,
       bottom: 0,
-      paddingTop: '64px' // ヘッダーの高さ分の余白
+      paddingTop: '56px' // ヘッダーの高さ分の余白
     }}>
       <Box sx={{ width: 240 }}>
         <Sidebar />
@@ -544,12 +576,57 @@ function ChatPageContent() {
                   {!petImage && <PetsIcon sx={{ color: '#2C3E5B' }} />}
                 </Avatar>
                 <Box sx={{ flex: 1 }}>
-                  <Typography variant="subtitle1" fontWeight="600" sx={{ color: 'white' }}>
-                    {otherUser?.nickname}
-                  </Typography>
-                  <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
-                    {selectedRoom.petName}について
-                  </Typography>
+                  <Box 
+                    onClick={() => {
+                      // マッチングIDがあるか、または現在のマッチングIDがセットされていればモーダルを開く
+                      if (selectedRoom.matchingId || currentMatchingId) {
+                        if (selectedRoom.matchingId) {
+                          setCurrentMatchingId(selectedRoom.matchingId);
+                        }
+                        setShowMatchingModal(true);
+                      }
+                    }}
+                    sx={{ 
+                      cursor: (selectedRoom.matchingId || currentMatchingId) ? 'pointer' : 'default',
+                      display: 'inline-block',
+                      '&:hover': {
+                        opacity: (selectedRoom.matchingId || currentMatchingId) ? 0.8 : 1
+                      }
+                    }}
+                  >
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                      <Typography 
+                        variant="subtitle1" 
+                        fontWeight="600" 
+                        sx={{ 
+                          color: 'white',
+                          textDecoration: (selectedRoom.matchingId || currentMatchingId) ? 'underline' : 'none',
+                          textDecorationStyle: 'dotted',
+                          textUnderlineOffset: '3px'
+                        }}
+                      >
+                        {otherUser?.nickname}
+                      </Typography>
+                      {(selectedRoom.matchingId || currentMatchingId) && (
+                        <Chip
+                          label="AIマッチング詳細"
+                          size="small"
+                          sx={{
+                            height: 20,
+                            fontSize: '0.65rem',
+                            bgcolor: 'rgba(255, 255, 255, 0.2)',
+                            color: 'white',
+                            '& .MuiChip-label': {
+                              px: 1
+                            }
+                          }}
+                        />
+                      )}
+                    </Box>
+                    <Typography variant="body2" sx={{ color: 'rgba(255, 255, 255, 0.8)' }}>
+                      {selectedRoom.petName}について
+                    </Typography>
+                  </Box>
                 </Box>
                 {/* 解決したボタン（飼い主のみ表示） */}
                 {selectedRoom && selectedRoom.ownerId === user?.uid && (
@@ -827,6 +904,41 @@ function ChatPageContent() {
             {resolving ? '処理中...' : 'はい、受け取りました'}
           </Button>
         </DialogActions>
+      </Dialog>
+
+      {/* AIマッチング詳細モーダル */}
+      <Dialog
+        open={showMatchingModal}
+        onClose={() => {
+          setShowMatchingModal(false);
+          setCurrentMatchingId(null);
+        }}
+        maxWidth="lg"
+        fullWidth
+        PaperProps={{
+          sx: {
+            height: '90vh',
+            maxHeight: '90vh',
+            overflow: 'hidden'
+          }
+        }}
+      >
+        <DialogTitle>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Typography variant="h6">AIマッチング詳細</Typography>
+            <IconButton 
+              onClick={() => {
+                setShowMatchingModal(false);
+                setCurrentMatchingId(null);
+              }}
+            >
+              <CloseIcon />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent sx={{ p: 0, overflow: 'auto' }}>
+          <PetMatchingCard />
+        </DialogContent>
       </Dialog>
     </Box>
   );

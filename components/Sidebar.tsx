@@ -35,8 +35,8 @@ export default function Sidebar() {
           width: 240,
           boxSizing: 'border-box',
           position: 'fixed',
-          top: 64, // ヘッダーの高さ
-          height: 'calc(100vh - 64px)',
+          top: 56, // ヘッダーの高さ
+          height: 'calc(100vh - 56px)',
           zIndex: 1000,
         },
       }}
